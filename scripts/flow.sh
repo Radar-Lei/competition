@@ -5,7 +5,7 @@ python -u main.py \
     --d_model 32 \
     --d_ff 32 \
     --gpu 1 \
-    --num_kernels 6 \
+    --num_kernels 3 \
     --top_k 3 \
     --lradj type3 \
     --batch_size 32 \
