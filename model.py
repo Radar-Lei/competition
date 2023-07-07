@@ -18,6 +18,13 @@ def FFT_for_Period(x, k=2):
     return period, abs(xf).mean(-1)[:, top_list]
 
 
+def get_torch_trans(heads=8, layers=1, channels=64):
+    encoder_layer = nn.TransformerEncoderLayer(
+        d_model=channels, nhead=heads, dim_feedforward=32, dropout=0.2, activation="gelu"
+    )
+    return nn.TransformerEncoder(encoder_layer, num_layers=layers)
+
+
 class TimesBlock(nn.Module):
     def __init__(self, configs):
         super(TimesBlock, self).__init__()
@@ -84,6 +91,8 @@ class Model(nn.Module):
                                     for _ in range(configs.e_layers)])
         self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq,
                                            configs.dropout)
+        self.fea_transformer = get_torch_trans(heads=4, layers=1, channels=configs.seq_len)
+
         self.layer = configs.e_layers
         self.layer_norm = nn.LayerNorm(configs.d_model)
         if self.task_name == 'long_term_forecast' or self.task_name == 'short_term_forecast':
@@ -139,10 +148,12 @@ class Model(nn.Module):
         x_enc /= stdev
 
         # embedding
-        enc_out = self.enc_embedding(x_enc, x_mark_enc)  # [B,T,C]
+        enc_out = self.enc_embedding(x_enc, x_mark_enc)  # [B,T,C] or [B,L,C]
         # TimesNet
         for i in range(self.layer):
             enc_out = self.layer_norm(self.model[i](enc_out))
+            # [C,B,L] --> [B,L,C]
+            enc_out = self.fea_transformer(enc_out.permute(2,0,1)).permute(1,2,0)
         # porject back
         dec_out = self.projection(enc_out)
 
