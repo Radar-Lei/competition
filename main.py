@@ -39,8 +39,8 @@ parser.add_argument('--factor', type=int, default=3, help='attn factor') # whay 
 parser.add_argument('--enc_in', type=int, default=40, help='encoder input size') # dim of feature/ num of nodes
 parser.add_argument('--dec_in', type=int, default=40, help='decoder input size')
 parser.add_argument('--c_out', type=int, default=40, help='output size')
-parser.add_argument('--d_model', type=int, default=64, help='dimension of model') # 512
-parser.add_argument('--d_ff', type=int, default=64, help='dimension of fcn') # FC network, 2048
+parser.add_argument('--d_model', type=int, default=32, help='dimension of model') # 512
+parser.add_argument('--d_ff', type=int, default=32, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') # 6
 parser.add_argument('--embed', type=str, default='timeF',
