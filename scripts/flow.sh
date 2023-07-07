@@ -4,7 +4,7 @@ python -u main.py \
     --data_path flow.csv \
     --d_model 32 \
     --d_ff 32 \
-    --gpu 0 \
+    --gpu 1 \
     --num_kernels 6 \
     --top_k 3 \
     --lradj type3 \
@@ -18,7 +18,7 @@ python -u main.py \
     --data_path flow.csv \
     --d_model 64 \
     --d_ff 64 \
-    --gpu 0 \
+    --gpu 1 \
     --num_kernels 6 \
     --top_k 5 \
     --lradj type3 \
@@ -32,7 +32,7 @@ python -u main.py \
     --data_path flow.csv \
     --d_model 64 \
     --d_ff 64 \
-    --gpu 0 \
+    --gpu 1 \
     --num_kernels 6 \
     --top_k 3 \
     --lradj type3 \
