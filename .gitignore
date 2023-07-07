@@ -2,3 +2,5 @@ dataset/
 __pycache__/
 checkpoints/
 checkpoint.pth
+results/
+test_results/

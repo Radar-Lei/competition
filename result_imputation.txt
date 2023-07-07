@@ -10,3 +10,6 @@ rmse:141.67, mae:97.66, mape:inf%
 dm64_df64_el2_dl1_fc3_Exp_0_flow.csv  
 rmse:146.56, mae:110.31, mape:9.36%
 
+dm64_df64_el2_dl1_fc3_Exp_0_flow.csv  
+rmse:147.19, mae:110.85, mape:9.47%
+

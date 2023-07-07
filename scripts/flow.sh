@@ -6,7 +6,7 @@ python -u main.py \
     --d_ff 32 \
     --gpu 0 \
     --num_kernels 6 \
-    --top_k 5 \
+    --top_k 3 \
     --lradj type3 \
     --batch_size 32 \
     --patience 10 \
