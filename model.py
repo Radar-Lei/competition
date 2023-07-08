@@ -31,6 +31,7 @@ class TimesBlock(nn.Module):
         self.seq_len = configs.seq_len
         self.pred_len = configs.pred_len
         self.k = configs.top_k
+
         # parameter-efficient design
         self.conv = nn.Sequential(
             Inception_Block_V1(configs.d_model, configs.d_ff,
@@ -60,6 +61,8 @@ class TimesBlock(nn.Module):
             out = out.reshape(B, length // period, period,
                               N).permute(0, 3, 1, 2).contiguous()
             # 2D conv: from 1d Variation to 2d Variation
+            B, C, num_period, period = out.shape
+            # out = out.squeeze(2) # (B, C, L)
             out = self.conv(out)
             # reshape back
             out = out.permute(0, 2, 3, 1).reshape(B, -1, N)
@@ -92,6 +95,7 @@ class Model(nn.Module):
         self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq,
                                            configs.dropout)
         self.fea_transformer = get_torch_trans(heads=4, layers=1, channels=configs.seq_len)
+        self.temporal_transformer = get_torch_trans(heads=4, layers=1, channels=configs.d_model)
 
         self.layer = configs.e_layers
         self.layer_norm = nn.LayerNorm(configs.d_model)
@@ -152,6 +156,8 @@ class Model(nn.Module):
         # TimesNet
         for i in range(self.layer):
             enc_out = self.layer_norm(self.model[i](enc_out))
+            # [B,L,C] --> [L,B,C] --> [B,L,C]
+            enc_out = self.temporal_transformer(enc_out.permute(1,0,2)).permute(1,0,2)
             # [C,B,L] --> [B,L,C]
             enc_out = self.fea_transformer(enc_out.permute(2,0,1)).permute(1,2,0)
         # porject back

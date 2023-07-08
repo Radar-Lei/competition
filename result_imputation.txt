@@ -1,0 +1,15 @@
+dm16_df16_el2_dl1_fc3_Exp_0_flow.csv  
+rmse:146.76, mae:109.88, mape:9.31%
+
+dm32_df32_el2_dl1_fc3_Exp_0_flow.csv  
+rmse:143.50, mae:107.31, mape:9.01%
+
+dm64_df64_el2_dl1_fc3_Exp_0_flow.csv  
+rmse:146.92, mae:109.79, mape:9.33%
+
+dm128_df128_el2_dl1_fc3_Exp_0_flow.csv  
+rmse:144.80, mae:108.43, mape:9.34%
+
+dm256_df128_el2_dl1_fc3_Exp_0_flow.csv  
+rmse:147.41, mae:111.44, mape:9.65%
+
