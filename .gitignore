@@ -1,6 +1,11 @@
 dataset/
 __pycache__/
+<<<<<<< HEAD
+checkpoint.pth
+checkpoints/
+=======
 checkpoints/
 checkpoint.pth
+>>>>>>> parent of 817c498 (update)
 results/
 test_results/

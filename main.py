@@ -39,8 +39,8 @@ parser.add_argument('--factor', type=int, default=3, help='attn factor') # whay 
 parser.add_argument('--enc_in', type=int, default=40, help='encoder input size') # dim of feature/ num of nodes
 parser.add_argument('--dec_in', type=int, default=40, help='decoder input size')
 parser.add_argument('--c_out', type=int, default=40, help='output size')
-parser.add_argument('--d_model', type=int, default=32, help='dimension of model') # 512
-parser.add_argument('--d_ff', type=int, default=32, help='dimension of fcn') # FC network, 2048
+parser.add_argument('--d_model', type=int, default=64, help='dimension of model') # 512
+parser.add_argument('--d_ff', type=int, default=64, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') # 6
 parser.add_argument('--embed', type=str, default='timeF',
@@ -53,7 +53,7 @@ parser.add_argument('--des', type=str, default='Exp', help='exp description')
 parser.add_argument('--itr', type=int, default=1, help='experiments times') # num of experiments
 parser.add_argument('--lradj', type=str, default='type3', help='adjust learning rate')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
-parser.add_argument('--patience', type=int, default=10, help='early stopping patience')
+parser.add_argument('--patience', type=int, default=20, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='optimizer learning rate')
 parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 parser.add_argument('--train_epochs', type=int, default=100, help='train epochs')
