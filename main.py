@@ -100,7 +100,8 @@ if args.is_training == 0:
 elif args.is_training == 1:
     # test
     ii = 0
-    setting = 'dm{}_df{}_el{}_nk{}_fq{}_{}_{}_{}'.format(
+    setting = '{}_dm{}_df{}_el{}_nk{}_fq{}_{}_{}_{}'.format(
+        current_time,
         args.d_model,
         args.d_ff,
         args.e_layers,

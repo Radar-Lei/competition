@@ -12,7 +12,8 @@ python -u main.py \
     --freq h \
     --learning_rate 0.001\
     --batch_size 32\
-    --e_layers 2
+    --e_layers 2\
+    --dropout 0.2
 
 python -u main.py \
     --is_training 0 \

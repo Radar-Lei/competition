@@ -5,13 +5,13 @@ python -u main.py \
     --d_model 32 \
     --d_ff 32 \
     --gpu 0 \
-    --num_kernels 6 \
-    --top_k 5 \
+    --num_kernels 3 \
+    --top_k 3 \
     --lradj type3 \
     --patience 20 \
     --freq h \
     --learning_rate 0.001\
-    --batch_size 16\
+    --batch_size 32\
     --e_layers 2
 
 python -u main.py \
