@@ -4,3 +4,4 @@ checkpoint.pth
 checkpoints/
 results/
 test_results/
+train_results/

@@ -38,7 +38,7 @@ class Executer(object):
         return data_set, data_loader
 
     def _select_optimizer(self):
-        model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate)
+        model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5)
         return model_optim
 
     def _select_criterion(self):
@@ -106,6 +106,10 @@ class Executer(object):
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
 
+        folder_path = './train_results/' + setting + '/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
@@ -134,6 +138,20 @@ class Executer(object):
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
+                    # eval
+                    outputs = outputs.detach().cpu().numpy()
+                    pred = outputs
+                    true = batch_x.detach().cpu().numpy()
+
+                    pred = train_data.inverse_transform(pred[0])
+                    true = train_data.inverse_transform(true[0])
+
+
+                    filled = true[:, -1].copy()
+                    filled = filled * mask[0, :, -1].detach().cpu().numpy() + \
+                                pred[:, -1] * (1 - mask[0, :, -1].detach().cpu().numpy())
+                    visual(true[:, -1], filled, os.path.join(folder_path, str(i) + '.png'))
+
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
                     speed = (time.time() - time_now) / iter_count
                     left_time = speed * ((self.args.train_epochs - epoch) * train_steps - i)

@@ -19,7 +19,8 @@ parser.add_argument('--is_training', type=int, default=0, help='status, options:
 
 # data loader
 parser.add_argument('--root_path', type=str, default='./dataset/competition/train-5min', help='root path of the data file') # competition
-parser.add_argument('--data_path', type=str, default='flow.csv', help='data file') # flow.csv
+# parser.add_argument('--data_path', type=str, default='flow.csv', help='data file') # flow.csv
+parser.add_argument('--data_path', type=str, default='speed.csv', help='data file') # speed.csv
 
 
 parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
@@ -61,7 +62,7 @@ parser.add_argument('--train_epochs', type=int, default=100, help='train epochs'
 
 # GPU
 parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
-parser.add_argument('--gpu', type=int, default=1, help='gpu')
+parser.add_argument('--gpu', type=int, default=0, help='gpu')
 parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
 parser.add_argument('--devices', type=str, default='0,1', help='device ids of multile gpus')
 
