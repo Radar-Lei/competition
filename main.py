@@ -3,6 +3,7 @@ import torch
 import random
 import numpy as np
 from execution import Executer
+import datetime
 
 fix_seed = 2021
 random.seed(fix_seed)
@@ -73,10 +74,12 @@ if args.use_gpu and args.use_multi_gpu:
     args.device_ids = [int(id_) for id_ in device_ids]
     args.gpu = args.device_ids[0]
 
+current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 if args.is_training == 0:
     # train
     for ii in range(args.itr):
-        setting = 'dm{}_df{}_el{}_dl{}_fc{}_{}_{}_{}'.format(
+        setting = '{}_dm{}_df{}_el{}_dl{}_fc{}_{}_{}_{}'.format(
+            current_time,
             args.d_model,
             args.d_ff,
             args.e_layers,
