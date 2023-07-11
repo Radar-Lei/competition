@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(description='TimesNet')
 # basic config
 parser.add_argument('--task_name', type=str, default='imputation',
                     help='task name, options:[long_term_forecast, short_term_forecast, imputation, classification, anomaly_detection]')
-parser.add_argument('--is_training', type=int, default=2, help='status, options:[0:training, 1:testing, 2:pred]')
+parser.add_argument('--is_training', type=int, default=0, help='status, options:[0:training, 1:testing, 2:pred]')
 
 # data loader
 parser.add_argument('--root_path', type=str, default='./dataset/competition/train-5min', help='root path of the data file') # competition
