@@ -146,11 +146,11 @@ class Executer(object):
                     pred = train_data.inverse_transform(pred[0])
                     true = train_data.inverse_transform(true[0])
 
-
-                    filled = true[:, -1].copy()
-                    filled = filled * mask[0, :, -1].detach().cpu().numpy() + \
-                                pred[:, -1] * (1 - mask[0, :, -1].detach().cpu().numpy())
-                    visual(true[:, -1], filled, os.path.join(folder_path, str(i) + '.png'))
+                    for j in range(0, true.shape[1], 8):
+                        filled = true[:, j].copy()
+                        filled = filled * mask[0, :, j].detach().cpu().numpy() + \
+                                    pred[:, j] * (1 - mask[0, :, j].detach().cpu().numpy())
+                        visual(true[:, j], filled, os.path.join(folder_path, str(i+j) + '.png'))
 
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
                     speed = (time.time() - time_now) / iter_count

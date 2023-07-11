@@ -7,7 +7,7 @@ import numpy as np
 
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None,
-                 data_path='ETTh1.csv', scale=True, timeenc=0, freq='h'):
+                 flow_data_path='ETTh1.csv', speed_data_path='', scale=True, timeenc=0, freq='h'):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -28,13 +28,20 @@ class Dataset_Custom(Dataset):
         self.freq = freq
 
         self.root_path = root_path
-        self.data_path = data_path
+        self.flow_data_path = flow_data_path
+        self.speed_data_path = speed_data_path
         self.__read_data__()
 
     def __read_data__(self):
         self.scaler = StandardScaler()
-        df_raw = pd.read_csv(os.path.join(self.root_path,
-                                          self.data_path))
+        df_flow_raw = pd.read_csv(os.path.join(self.root_path,
+                                          self.flow_data_path))
+        df_speed_raw = pd.read_csv(os.path.join(self.root_path, self.speed_data_path))
+        
+        df_raw = np.concatenate((df_flow_raw.values[:,1:], df_speed_raw.values[:,1:]),axis=1)
+        df_raw = np.concatenate((np.expand_dims(df_flow_raw['date'].values, axis=1), df_raw),axis=1)
+        df_raw = pd.DataFrame(df_raw)
+        df_raw.rename(columns={0:'date'}, inplace=True)
         
         df_raw[df_raw == 0] = np.nan
         df_raw.fillna(method='ffill', inplace=True)
@@ -92,7 +99,7 @@ class Dataset_Custom(Dataset):
 
     def __getitem__(self, index):
         if (self.set_type == 0):
-            s_begin = index
+            s_begin = index * 6
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -111,7 +118,7 @@ class Dataset_Custom(Dataset):
 
     def __len__(self):
         if self.set_type == 0:
-            return len(self.data_x) - self.seq_len - self.pred_len + 1
+            return int((len(self.data_x) - self.seq_len - self.pred_len) / 6 ) + 1
         else:
             return int(len(self.data_x) / self.L_d)
 
@@ -138,7 +145,8 @@ def data_provider(args, flag):
 
     data_set = Data(
         root_path=args.root_path,
-        data_path=args.data_path,
+        flow_data_path=args.flow_data_path,
+        speed_data_path=args.speed_data_path,
         flag=flag,
         size=[args.seq_len, args.label_len, args.pred_len],
         timeenc=timeenc,
