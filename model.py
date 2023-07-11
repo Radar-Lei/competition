@@ -93,8 +93,8 @@ class Model(nn.Module):
                                     for _ in range(configs.e_layers)])
         self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq,
                                            configs.dropout)
-        self.fea_transformer = get_torch_trans(heads=4, layers=1, channels=configs.seq_len)
-        self.temporal_transformer = get_torch_trans(heads=4, layers=1, channels=configs.d_model)
+        self.fea_transformer = get_torch_trans(heads=2, layers=1, channels=configs.seq_len)
+        self.temporal_transformer = get_torch_trans(heads=2, layers=1, channels=configs.d_model)
 
         self.layer = configs.e_layers
         self.layer_norm = nn.LayerNorm(configs.d_model)
