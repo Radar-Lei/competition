@@ -33,8 +33,8 @@ class Executer(object):
             print('Use CPU')
         return device
 
-    def _get_data(self, flag):
-        data_set, data_loader = data_provider(self.args, flag)
+    def _get_data(self, flag, scaler=None):
+        data_set, data_loader = data_provider(self.args, flag, scaler)
         return data_set, data_loader
 
     def _select_optimizer(self):
@@ -180,8 +180,12 @@ class Executer(object):
 
         return self.model
 
-    def test(self, setting, test=0):
-        test_data, test_loader = self._get_data(flag='test')
+    def test(self, setting, test=0, pred_loader=None):
+        if pred_loader is None:
+            test_data, test_loader = self._get_data(flag='test')
+        else:
+            test_loader = pred_loader
+            test_data, _ = self._get_data(flag='test')
 
         _, K = test_data[0][0].shape
         mask = self.create_fixed_mask(K)
@@ -191,10 +195,12 @@ class Executer(object):
             print('loading model')
             self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth')))
 
+
         preds = []
         trues = []
         masks = []
         folder_path = './test_results/' + setting + '/'
+
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
@@ -257,6 +263,12 @@ class Executer(object):
         np.save(folder_path + 'pred.npy', preds)
         np.save(folder_path + 'true.npy', trues)
         return
+    
+    def pred(self, setting):
+        test_data, _ = self._get_data(flag='test')
+        _, pred_loader = self._get_data(flag='pred', scaler=test_data.pred_transform())
+
+        self.test(setting, test=1, pred_loader=pred_loader)
     
     def create_fixed_mask(self,dim_k):
         # Define the start and end times of each range

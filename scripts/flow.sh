@@ -18,7 +18,7 @@ python -u main.py \
 python -u main.py \
     --is_training 0 \
     --root_path ./dataset/competition/train-5min/ \
-    --data_path flow.csv \
+    --data_path flow-5min.csv \
     --d_model 32 \
     --d_ff 32 \
     --gpu 0 \

@@ -1,33 +1,17 @@
-dm16_df16_el2_dl1_fc3_Exp_0_flow.csv  
-rmse:146.76, mae:109.88, mape:9.31%
-
-dm32_df32_el2_dl1_fc3_Exp_0_flow.csv  
-rmse:143.50, mae:107.31, mape:9.01%
-
-dm64_df64_el2_dl1_fc3_Exp_0_flow.csv  
-rmse:146.92, mae:109.79, mape:9.33%
-
-dm128_df128_el2_dl1_fc3_Exp_0_flow.csv  
-rmse:144.80, mae:108.43, mape:9.34%
-
-dm256_df128_el2_dl1_fc3_Exp_0_flow.csv  
-rmse:147.41, mae:111.44, mape:9.65%
-
-20230711_150558_dm64_df32_el2_dl1_fc3_Exp_0  
-rmse:108.39, mae:60.61, mape:8.68%
-
-20230711_152342_dm64_df32_el2_dl1_fc3_Exp_0  
-rmse:107.05, mae:59.64, mape:8.75%
-
-20230711_153659_dm64_df32_el2_dl1_fc3_Exp_0  
-rmse:106.31, mae:59.57, mape:8.69%
-
-20230711_154631_dm64_df32_el2_dl1_fc3_Exp_0  
-rmse:110.25, mae:61.18, mape:8.87%
-
-20230711_165324_dm32_df16_el2_dl1_fc3_Exp_0  
-rmse:109.71, mae:61.22, mape:8.79%
-
 20230711_171206_dm64_df32_el2topk3_nk3_fq_h_Exp  
 rmse:108.00, mae:60.52, mape:8.93%
+
+
+20230711_182349_dm64_df32_el2_topk3_nk6_fq_h_Exp  
+rmse:112.46, mae:62.43, mape:8.79%
+
+
+20230711_190414_dm64_df32_el2_topk3_nk6_fq_h_Exp  
+rmse:106.55, mae:59.37, mape:8.59%
+
+20230711_190414_dm64_df32_el2_topk3_nk6_fq_h_Exp  
+rmse:129.05, mae:73.47, mape:11.91%
+
+20230711_201410_dm64_df32_el2_topk5_nk6_fq_h_Exp  
+rmse:110.32, mae:61.48, mape:8.78%
 

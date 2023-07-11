@@ -7,7 +7,7 @@ import numpy as np
 
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None,
-                 flow_data_path='ETTh1.csv', speed_data_path='', scale=True, timeenc=0, freq='h'):
+                 flow_data_path='ETTh1.csv', speed_data_path='', scale=True, timeenc=0, freq='h', scaler=None):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -19,13 +19,14 @@ class Dataset_Custom(Dataset):
             self.label_len = size[1]
             self.pred_len = size[2]
         # init
-        assert flag in ['train', 'test', 'val']
-        type_map = {'train': 0, 'val': 1, 'test': 2}
+        assert flag in ['train', 'test', 'val', 'pred']
+        type_map = {'train': 0, 'val': 1, 'test': 2, 'pred': 3}
         self.set_type = type_map[flag]
 
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.scaler = scaler
 
         self.root_path = root_path
         self.flow_data_path = flow_data_path
@@ -33,7 +34,8 @@ class Dataset_Custom(Dataset):
         self.__read_data__()
 
     def __read_data__(self):
-        self.scaler = StandardScaler()
+        if self.set_type != 3:
+            self.scaler = StandardScaler()
         df_flow_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.flow_data_path))
         df_speed_raw = pd.read_csv(os.path.join(self.root_path, self.speed_data_path))
@@ -68,16 +70,23 @@ class Dataset_Custom(Dataset):
         border1s = [0, num_train, len(df_raw) - num_test]
         border2s = [num_train, num_train + num_vali, len(df_raw)]
 
-        border1 = border1s[self.set_type]
-        border2 = border2s[self.set_type]
+        if self.set_type != 3:
+            border1 = border1s[self.set_type]
+            border2 = border2s[self.set_type]
+        else:
+            border1 = 0
+            border2 = len(df_raw)
 
         cols_data = df_raw.columns[1:]
         df_data = df_raw[cols_data]
 
         if self.scale:
-            train_data = df_data[border1s[0]:border2s[0]]
-            self.scaler.fit(train_data.values)
-            data = self.scaler.transform(df_data.values)
+            if self.set_type != 3:
+                train_data = df_data[border1s[0]:border2s[0]]
+                self.scaler.fit(train_data.values)
+                data = self.scaler.transform(df_data.values)
+            else:
+                data = self.scaler.transform(df_data.values)
         else:
             data = df_data.values
 
@@ -95,11 +104,17 @@ class Dataset_Custom(Dataset):
 
         self.data_x = data[border1:border2]
         self.data_y = data[border1:border2]
+
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
         if (self.set_type == 0):
             s_begin = index * 6
+            s_end = s_begin + self.seq_len
+            r_begin = s_end - self.label_len
+            r_end = r_begin + self.label_len + self.pred_len
+        elif self.set_type == 3:
+            s_begin = index * self.seq_len
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -119,18 +134,23 @@ class Dataset_Custom(Dataset):
     def __len__(self):
         if self.set_type == 0:
             return int((len(self.data_x) - self.seq_len - self.pred_len) / 6 ) + 1
+        elif self.set_type == 3: # pred
+            return self.num_day
         else:
             return int(len(self.data_x) / self.L_d)
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
     
+    def pred_transform(self):
+        return self.scaler
+    
 
-def data_provider(args, flag):
+def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if flag == 'test' or flag == 'val':
+    if flag == 'test' or flag == 'val' or flag == 'pred':
         shuffle_flag = False
         drop_last = True
         
@@ -142,15 +162,20 @@ def data_provider(args, flag):
         batch_size = args.batch_size  # bsz for train and valid
         freq = args.freq
 
+    if flag == 'pred':
+        root_path = args.pred_root_path
+    else:
+        root_path = args.root_path
 
     data_set = Data(
-        root_path=args.root_path,
+        root_path=root_path,
         flow_data_path=args.flow_data_path,
         speed_data_path=args.speed_data_path,
         flag=flag,
         size=[args.seq_len, args.label_len, args.pred_len],
         timeenc=timeenc,
         freq=freq,
+        scaler=scaler,
     )
     print(flag, len(data_set))
     data_loader = DataLoader(
