@@ -19,8 +19,8 @@ parser.add_argument('--is_training', type=int, default=0, help='status, options:
 
 # data loader
 parser.add_argument('--root_path', type=str, default='./dataset/competition/train-5min', help='root path of the data file') # competition
-parser.add_argument('--flow_data_path', type=str, default='flow.csv', help='data file') # flow.csv
-parser.add_argument('--speed_data_path', type=str, default='speed.csv', help='data file') # speed.csv
+parser.add_argument('--flow_data_path', type=str, default='flow-5min.csv', help='data file') # flow.csv
+parser.add_argument('--speed_data_path', type=str, default='speed-5min.csv', help='data file') # speed.csv
 
 
 parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
@@ -41,7 +41,7 @@ parser.add_argument('--factor', type=int, default=3, help='attn factor') # what 
 parser.add_argument('--enc_in', type=int, default=80, help='encoder input size') # dim of feature/ num of nodes
 parser.add_argument('--dec_in', type=int, default=80, help='decoder input size')
 parser.add_argument('--c_out', type=int, default=80, help='output size')
-parser.add_argument('--d_model', type=int, default=32, help='dimension of model') # 512
+parser.add_argument('--d_model', type=int, default=64, help='dimension of model') # 512
 parser.add_argument('--d_ff', type=int, default=32, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=3, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=3, help='for Inception') # 6
@@ -55,7 +55,7 @@ parser.add_argument('--des', type=str, default='Exp', help='exp description')
 parser.add_argument('--itr', type=int, default=1, help='experiments times') # num of experiments
 parser.add_argument('--lradj', type=str, default='type3', help='adjust learning rate')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
-parser.add_argument('--patience', type=int, default=30, help='early stopping patience')
+parser.add_argument('--patience', type=int, default=40, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='optimizer learning rate')
 parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 parser.add_argument('--train_epochs', type=int, default=500, help='train epochs')
@@ -79,13 +79,14 @@ current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 if args.is_training == 0:
     # train
     for ii in range(args.itr):
-        setting = '{}_dm{}_df{}_el{}_dl{}_fc{}_{}_{}'.format(
+        setting = '{}_dm{}_df{}_el{}topk{}_nk{}_fq_{}_{}'.format(
             current_time,
             args.d_model,
             args.d_ff,
             args.e_layers,
-            args.d_layers,
-            args.factor,
+            args.top_k,
+            args.num_kernels,
+            args.freq,
             args.des,
             ii)
         
@@ -100,11 +101,12 @@ if args.is_training == 0:
 elif args.is_training == 1:
     # test
     ii = 0
-    setting = '{}_dm{}_df{}_el{}_nk{}_fq{}_{}_{}'.format(
+    setting = '{}_dm{}_df{}_el{}topk{}_nk{}_fq_{}_{}'.format(
         current_time,
         args.d_model,
         args.d_ff,
         args.e_layers,
+        args.top_k,
         args.num_kernels,
         args.freq,
         args.des,

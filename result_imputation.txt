@@ -25,3 +25,9 @@ rmse:106.31, mae:59.57, mape:8.69%
 20230711_154631_dm64_df32_el2_dl1_fc3_Exp_0  
 rmse:110.25, mae:61.18, mape:8.87%
 
+20230711_165324_dm32_df16_el2_dl1_fc3_Exp_0  
+rmse:109.71, mae:61.22, mape:8.79%
+
+20230711_171206_dm64_df32_el2topk3_nk3_fq_h_Exp  
+rmse:108.00, mae:60.52, mape:8.93%
+
