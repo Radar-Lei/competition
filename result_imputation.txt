@@ -1,17 +1,9 @@
-20230711_171206_dm64_df32_el2topk3_nk3_fq_h_Exp  
-rmse:108.00, mae:60.52, mape:8.93%
+20230712_002808_dm32_df32_el2_topk3_nk3_fq_h_Exp  
+rmse:273.63, mae:152.65, mape:6.37%
 
+20230712_005035_dm64_df32_el2_topk3_nk3_fq_h_Exp  
+rmse:243.64, mae:134.07, mape:5.70%
 
-20230711_182349_dm64_df32_el2_topk3_nk6_fq_h_Exp  
-rmse:112.46, mae:62.43, mape:8.79%
-
-
-20230711_190414_dm64_df32_el2_topk3_nk6_fq_h_Exp  
-rmse:106.55, mae:59.37, mape:8.59%
-
-20230711_190414_dm64_df32_el2_topk3_nk6_fq_h_Exp  
-rmse:129.05, mae:73.47, mape:11.91%
-
-20230711_201410_dm64_df32_el2_topk5_nk6_fq_h_Exp  
-rmse:110.32, mae:61.48, mape:8.78%
+20230712_005035_dm64_df32_el2_topk3_nk3_fq_h_Exp  
+rmse:367.28, mae:198.61, mape:8.20%
 

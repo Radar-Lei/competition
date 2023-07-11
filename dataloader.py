@@ -67,8 +67,8 @@ class Dataset_Custom(Dataset):
         num_test = int(self.num_day * 0.1) * self.L_d
         num_vali = len(df_raw) - num_train - num_test
 
-        border1s = [0, num_train, len(df_raw) - num_test]
-        border2s = [num_train, num_train + num_vali, len(df_raw)]
+        border1s = [num_vali + num_test, num_test, 0]
+        border2s = [len(df_raw), num_vali + num_test, num_test]
 
         if self.set_type != 3:
             border1 = border1s[self.set_type]
@@ -79,16 +79,22 @@ class Dataset_Custom(Dataset):
 
         cols_data = df_raw.columns[1:]
         df_data = df_raw[cols_data]
+        df_data_flow = df_data.iloc[:, :40]
+        df_data_speed = df_data.iloc[:, 40:]
+        L, _ = df_data_flow.shape
+        result_flow_pred = np.sum(df_data_flow.values.reshape((L,10,4)), axis=2)
+        result_speed_pred = np.sum((df_data_flow.values * df_data_speed.values).reshape((L,10,4)), axis=2) / result_flow_pred
+        df_data = np.hstack((result_flow_pred, result_speed_pred))
 
         if self.scale:
             if self.set_type != 3:
-                train_data = df_data[border1s[0]:border2s[0]]
-                self.scaler.fit(train_data.values)
-                data = self.scaler.transform(df_data.values)
+                train_data = df_data[border1s[0]:border2s[0],:]
+                self.scaler.fit(train_data)
+                data = self.scaler.transform(df_data)
             else:
-                data = self.scaler.transform(df_data.values)
+                data = self.scaler.transform(df_data)
         else:
-            data = df_data.values
+            data = df_data
 
         df_stamp = df_raw[['date']][border1:border2]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
@@ -109,7 +115,7 @@ class Dataset_Custom(Dataset):
 
     def __getitem__(self, index):
         if (self.set_type == 0):
-            s_begin = index * 6
+            s_begin = index * 3
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -119,7 +125,7 @@ class Dataset_Custom(Dataset):
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
         else:
-            s_begin = 5*12 + index * self.L_d
+            s_begin = index * 3
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -133,11 +139,11 @@ class Dataset_Custom(Dataset):
 
     def __len__(self):
         if self.set_type == 0:
-            return int((len(self.data_x) - self.seq_len - self.pred_len) / 6 ) + 1
+            return int((len(self.data_x) - self.seq_len - self.pred_len) / 3 ) + 1
         elif self.set_type == 3: # pred
             return self.num_day
         else:
-            return int(len(self.data_x) / self.L_d)
+            return int((len(self.data_x) - self.seq_len - self.pred_len) / 3 ) + 1
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)

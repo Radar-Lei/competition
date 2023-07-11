@@ -146,7 +146,7 @@ class Executer(object):
                     pred = train_data.inverse_transform(pred[0])
                     true = train_data.inverse_transform(true[0])
 
-                    for j in range(0, true.shape[1], 8):
+                    for j in range(true.shape[1]):
                         filled = true[:, j].copy()
                         filled = filled * mask[0, :, j].detach().cpu().numpy() + \
                                     pred[:, j] * (1 - mask[0, :, j].detach().cpu().numpy())
@@ -235,10 +235,11 @@ class Executer(object):
                 trues.append(true)
                 masks.append(mask.detach().cpu())
 
-                filled = true[0, :, -1].copy()
-                filled = filled * mask[0, :, -1].detach().cpu().numpy() + \
-                            pred[0, :, -1] * (1 - mask[0, :, -1].detach().cpu().numpy())
-                visual(true[0, :, -1], filled, os.path.join(folder_path, str(i) + '.png'))
+                for j in range(true.shape[2]):
+                    filled = true[0, :, j].copy()
+                    filled = filled * mask[0, :, j].detach().cpu().numpy() + \
+                                pred[0, :, j] * (1 - mask[0, :, j].detach().cpu().numpy())
+                    visual(true[0, :, j], filled, os.path.join(folder_path, str(i) + '.png'))
 
         preds = np.concatenate(preds, 0)
         trues = np.concatenate(trues, 0)
