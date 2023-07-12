@@ -27,7 +27,7 @@ parser.add_argument('--root_path', type=str, default='./dataset/competition/trai
 parser.add_argument('--pred_root_path', type=str, default='./dataset/competition/test-5min', help='root path of the test data file') # competition
 parser.add_argument('--flow_data_path', type=str, default='flow-5min.csv', help='data file') # flow.csv
 parser.add_argument('--speed_data_path', type=str, default='speed-5min.csv', help='data file') # speed.csv
-parser.add_argument('--dataloader_type', type=str, default='agg', help='options:[agg:aggregation, flow_agg, speed_agg, flow, speed, multi: multidata but not agg]') # speed.csv
+parser.add_argument('--dataloader_type', type=str, default='flow', help='options:[agg:aggregation, flow_agg, speed_agg, flow, speed, multi: multidata but not agg]') # speed.csv
 parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 parser.add_argument('--freq', type=str, default='h',
                     help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
@@ -42,9 +42,9 @@ parser.add_argument('--pred_len', type=int, default=12, help='prediction sequenc
 parser.add_argument('--e_layers', type=int, default=2, help='num of encoder layers')
 parser.add_argument('--d_layers', type=int, default=1, help='num of decoder layers')
 parser.add_argument('--factor', type=int, default=3, help='attn factor') # what is this?
-parser.add_argument('--enc_in', type=int, default=20, help='encoder input size') # dim of feature/ num of nodes
-parser.add_argument('--dec_in', type=int, default=20, help='decoder input size')
-parser.add_argument('--c_out', type=int, default=20, help='output size')
+parser.add_argument('--enc_in', type=int, default=40, help='encoder input size') # dim of feature/ num of nodes
+parser.add_argument('--dec_in', type=int, default=40, help='decoder input size')
+parser.add_argument('--c_out', type=int, default=40, help='output size')
 parser.add_argument('--d_model', type=int, default=64, help='dimension of model') # 512
 parser.add_argument('--d_ff', type=int, default=32, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=3, help='for TimesBlock') # 5

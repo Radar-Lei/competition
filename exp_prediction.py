@@ -5,7 +5,7 @@ import torch.nn as nn
 from dataloader import data_provider
 from torch import optim
 import numpy as np
-from utils import metric, adjust_learning_rate, visual, EarlyStopping
+from utils import metric, visual, EarlyStopping
 import time
 import pandas as pd
 
@@ -97,6 +97,13 @@ class Exp_Prediction(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            model_optim, 
+            factor=0.8, 
+            patience=5, 
+            verbose=True
+            )        
+
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
@@ -183,7 +190,8 @@ class Exp_Prediction(Exp_Basic):
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
-            adjust_learning_rate(model_optim, epoch + 1, self.args)
+
+            scheduler.step(train_loss)            
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
@@ -204,7 +212,7 @@ class Exp_Prediction(Exp_Basic):
 
         preds = []
         trues = []
-        masks = []
+
         folder_path = './test_results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
@@ -246,18 +254,18 @@ class Exp_Prediction(Exp_Basic):
                 pred = outputs
                 true = batch_y
 
-                pred = test_data.inverse_transform(pred[0]).reshape(pred.shape)
-                true = test_data.inverse_transform(true[0]).reshape(true.shape)
+                # batch_size of testing has to be 1
+                pred = test_data.inverse_transform(pred[0])
+                true = test_data.inverse_transform(true[0])
                 hist = test_data.inverse_transform(batch_x.detach().cpu().numpy()[0])
 
                 preds.append(pred)
                 trues.append(true)
 
                 if i % 20 == 0:
-                    for j in range(true.shape[2]):
-                        gt = np.concatenate((hist[0, :, j], true[0, :, j]), axis=0)
-                        pd = np.concatenate((hist[0, :, j], pred[0, :, j]), axis=0)
-                        visual(gt, pd, os.path.join(folder_path, str(i + j) + '.png'))
+                    gt = np.concatenate((hist[:, -1], true[:, -1]), axis=0)
+                    pd = np.concatenate((hist[:, -1], pred[:, -1]), axis=0)
+                    visual(gt, pd, os.path.join(folder_path, str(i) + '.png'))
 
         preds = np.array(preds)
         trues = np.array(trues)
@@ -271,7 +279,7 @@ class Exp_Prediction(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        mae, mse, rmse, mape, mspe = metric(preds[masks == 0], trues[masks == 0])
+        mae, mse, rmse, mape, mspe = metric(preds, trues)
         print('rmse:{:.2f}, mae:{:.2f}, mape:{:.2f}%'.format(rmse, mae, mape*100))
         f = open("result_prediction.txt", 'a')
         f.write(setting + "  \n")

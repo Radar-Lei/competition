@@ -5,7 +5,7 @@ import torch.nn as nn
 from dataloader import data_provider
 from torch import optim
 import numpy as np
-from utils import metric, adjust_learning_rate, visual, EarlyStopping
+from utils import metric, visual, EarlyStopping
 import time
 import pandas as pd
 
@@ -97,6 +97,13 @@ class Exp_Imputation(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            model_optim, 
+            factor=0.8, 
+            patience=5, 
+            verbose=True
+            )
+
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
@@ -160,7 +167,8 @@ class Exp_Imputation(Exp_Basic):
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
-            adjust_learning_rate(model_optim, epoch + 1, self.args)
+
+            scheduler.step(train_loss)
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
@@ -222,11 +230,11 @@ class Exp_Imputation(Exp_Basic):
                 trues.append(true)
                 masks.append(mask.detach().cpu())
 
-                for j in range(true.shape[2]):
-                    filled = true[0, :, j].copy()
-                    filled = filled * mask[0, :, j].detach().cpu().numpy() + \
-                                pred[0, :, j] * (1 - mask[0, :, j].detach().cpu().numpy())
-                    visual(true[0, :, j], filled, os.path.join(folder_path, str(i) + '.png'))
+                if i % 20 == 0:
+                    filled = true[0, :, -1].copy()
+                    filled = filled * mask[0, :, -1].detach().cpu().numpy() + \
+                                pred[0, :, -1] * (1 - mask[0, :, -1].detach().cpu().numpy())
+                    visual(true[0, :, -1], filled, os.path.join(folder_path, str(i) + '.png'))
 
         preds = np.concatenate(preds, 0)
         trues = np.concatenate(trues, 0)

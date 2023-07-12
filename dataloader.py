@@ -4,6 +4,7 @@ import pandas as pd
 import os
 from utils import time_features
 import numpy as np
+import datetime
 
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', 
@@ -80,20 +81,6 @@ class Dataset_Custom(Dataset):
         else:
             self.num_day = 90
 
-        num_train = int(self.num_day * 0.8) * self.L_d
-        num_test = int(self.num_day * 0.1) * self.L_d
-        num_vali = len(df_raw) - num_train - num_test
-
-        border1s = [num_vali + num_test, num_test, 0]
-        border2s = [len(df_raw), num_vali + num_test, num_test]
-
-        if self.set_type != 3:
-            border1 = border1s[self.set_type]
-            border2 = border2s[self.set_type]
-        else:
-            border1 = 0
-            border2 = len(df_raw)
-
         cols_data = df_raw.columns[1:]
         df_data = df_raw[cols_data]
 
@@ -111,19 +98,62 @@ class Dataset_Custom(Dataset):
                 df_data = np.hstack((result_flow_pred, result_speed_pred))
         else:
             df_data = df_data.values
+        
+        num_days_train = int(self.num_day * 0.8)
+        num_days_test = int(self.num_day * 0.05)
+        num_days_vali = self.num_day - num_days_train - num_days_test
 
+        df_data = pd.DataFrame(df_data,index=pd.DatetimeIndex(df_raw['date'].values))
+
+        if self.set_type != 3:
+            # Get the start and end dates from df_data index
+            start_date = df_data.index.min()
+            end_date = df_data.index.max()
+
+            # Generate a range of dates between start_date and end_date
+            date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+
+            # Randomly select dates for each dataset
+            train_dates = np.random.choice(date_range, size=num_days_train, replace=False)
+            train_dates = train_dates.astype('datetime64[D]')
+            train_dates = train_dates.astype(datetime.datetime)
+
+            vali_dates = np.random.choice(date_range[~np.isin(date_range, train_dates)], size=num_days_vali, replace=False)
+            vali_dates = vali_dates.astype('datetime64[D]')
+            vali_dates = vali_dates.astype(datetime.datetime)
+
+            test_dates = np.random.choice(date_range[~np.isin(date_range, np.concatenate([train_dates, vali_dates]))], size=num_days_test, replace=False)
+            test_dates = test_dates.astype('datetime64[D]')
+            test_dates = test_dates.astype(datetime.datetime)
+
+
+            # Filter df_data based on the selected dates
+            df_train = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(train_dates)]
+            df_vali = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(vali_dates)]
+            df_test = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(test_dates)]
 
         if self.scale:
             if self.set_type != 3:
-                train_data = df_data[border1s[0]:border2s[0],:]
-                self.scaler.fit(train_data)
-                data = self.scaler.transform(df_data)
+                self.scaler.fit(df_train.values)
+                train_data = self.scaler.transform(df_train.values)
+                vali_data = self.scaler.transform(df_vali.values)
+                test_data = self.scaler.transform(df_test.values)
             else:
-                data = self.scaler.transform(df_data)
+                pred_data = self.scaler.transform(df_data.values)
         else:
-            data = df_data
+            train_data = df_train.values
+            vali_data = df_vali.values
+            test_data = df_test.values
 
-        df_stamp = df_raw[['date']][border1:border2]
+        if self.set_type == 0:
+            df_stamp = df_train.reset_index().rename(columns={'index': 'date'})[['date']]
+        elif self.set_type == 1:
+            df_stamp = df_vali.reset_index().rename(columns={'index': 'date'})[['date']]
+        elif self.set_type == 2:
+            df_stamp = df_test.reset_index().rename(columns={'index': 'date'})[['date']]
+        else:
+            df_stamp = df_data.reset_index().rename(columns={'index': 'date'})[['date']]
+
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         if self.timeenc == 0:
             df_stamp['month'] = df_stamp.date.apply(lambda row: row.month, 1)
@@ -135,8 +165,18 @@ class Dataset_Custom(Dataset):
             data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
             data_stamp = data_stamp.transpose(1, 0)
 
-        self.data_x = data[border1:border2]
-        self.data_y = data[border1:border2]
+        if self.set_type == 0:
+            self.data_x = train_data
+            self.data_y = train_data
+        elif self.set_type == 1:
+            self.data_x = vali_data
+            self.data_y = vali_data
+        elif self.set_type == 2:
+            self.data_x = test_data
+            self.data_y = test_data
+        else:
+            self.data_x = pred_data
+            self.data_y = pred_data
 
         self.data_stamp = data_stamp
 
@@ -180,7 +220,7 @@ def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if flag == 'pred':
+    if (flag == 'pred') or (flag == 'test'):
         shuffle_flag = False
         drop_last = True
         
