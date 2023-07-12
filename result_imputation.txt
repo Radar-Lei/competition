@@ -1,9 +1,0 @@
-20230712_002808_dm32_df32_el2_topk3_nk3_fq_h_Exp  
-rmse:273.63, mae:152.65, mape:6.37%
-
-20230712_005035_dm64_df32_el2_topk3_nk3_fq_h_Exp  
-rmse:243.64, mae:134.07, mape:5.70%
-
-20230712_005035_dm64_df32_el2_topk3_nk3_fq_h_Exp  
-rmse:367.28, mae:198.61, mape:8.20%
-

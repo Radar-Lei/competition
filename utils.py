@@ -59,8 +59,10 @@ def visual(true, preds=None, name='./pic/test.pdf'):
     """
     plt.figure()
     plt.plot(true, label='GroundTruth', linewidth=2, alpha=0.7)
+    plt.scatter(range(len(true)), true, label='Prediction', s=4)
     if preds is not None:
         plt.plot(preds, label='Prediction', linewidth=2, alpha=0.7)
+        plt.scatter(range(len(preds)), preds, label='Prediction', s=4)
     plt.legend()
     plt.savefig(name, bbox_inches='tight')
     plt.close()

@@ -1,5 +1,5 @@
 import torch
-from model import Model
+from exp_base import Exp_Basic
 import os
 import torch.nn as nn
 from dataloader import data_provider
@@ -9,29 +9,16 @@ from utils import metric, adjust_learning_rate, visual, EarlyStopping
 import time
 import pandas as pd
 
-class Executer(object):
+class Exp_Imputation(Exp_Basic):
     def __init__(self, args):
-        self.args = args
-        self.device = self._acquire_device()
-        self.model = self._build_model().to(self.device)
+        super(Exp_Imputation, self).__init__(args)
 
     def _build_model(self):
-        model = Model(self.args).float()
+        model = self.model_dict[self.args.model].Model(self.args).float()
 
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
         return model
-
-    def _acquire_device(self):
-        if self.args.use_gpu:
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(
-                self.args.gpu) if not self.args.use_multi_gpu else self.args.devices
-            device = torch.device('cuda:{}'.format(self.args.gpu))
-            print('Use GPU: cuda:{}'.format(self.args.gpu))
-        else:
-            device = torch.device('cpu')
-            print('Use CPU')
-        return device
 
     def _get_data(self, flag, scaler=None):
         data_set, data_loader = data_provider(self.args, flag, scaler)

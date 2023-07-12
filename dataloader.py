@@ -6,8 +6,17 @@ from utils import time_features
 import numpy as np
 
 class Dataset_Custom(Dataset):
-    def __init__(self, root_path, flag='train', size=None,
-                 flow_data_path='ETTh1.csv', speed_data_path='', scale=True, timeenc=0, freq='h', scaler=None):
+    def __init__(self, root_path, flag='train', 
+                 size=None,
+                 flow_data_path='ETTh1.csv', 
+                 speed_data_path='', 
+                 scale=True, 
+                 timeenc=0, 
+                 freq='h', 
+                 scaler=None, 
+                 loader_type='agg',
+                 task_name = 'imputation',
+                 data_shrink = 1):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -27,6 +36,9 @@ class Dataset_Custom(Dataset):
         self.timeenc = timeenc
         self.freq = freq
         self.scaler = scaler
+        self.loader_type = loader_type
+        self.task_name = task_name
+        self.data_shrink = data_shrink
 
         self.root_path = root_path
         self.flow_data_path = flow_data_path
@@ -40,10 +52,15 @@ class Dataset_Custom(Dataset):
                                           self.flow_data_path))
         df_speed_raw = pd.read_csv(os.path.join(self.root_path, self.speed_data_path))
         
-        df_raw = np.concatenate((df_flow_raw.values[:,1:], df_speed_raw.values[:,1:]),axis=1)
-        df_raw = np.concatenate((np.expand_dims(df_flow_raw['date'].values, axis=1), df_raw),axis=1)
-        df_raw = pd.DataFrame(df_raw)
-        df_raw.rename(columns={0:'date'}, inplace=True)
+        if self.loader_type in ['multi','agg','agg_flow','agg_speed']:
+            df_raw = np.concatenate((df_flow_raw.values[:,1:], df_speed_raw.values[:,1:]),axis=1)
+            df_raw = np.concatenate((np.expand_dims(df_flow_raw['date'].values, axis=1), df_raw),axis=1)
+            df_raw = pd.DataFrame(df_raw)
+            df_raw.rename(columns={0:'date'}, inplace=True)
+        elif self.loader_type == 'flow':
+            df_raw = df_flow_raw
+        else: # self.loader_type == 'speed':
+            df_raw = df_speed_raw
         
         df_raw[df_raw == 0] = np.nan
         df_raw.fillna(method='ffill', inplace=True)
@@ -79,12 +96,22 @@ class Dataset_Custom(Dataset):
 
         cols_data = df_raw.columns[1:]
         df_data = df_raw[cols_data]
-        df_data_flow = df_data.iloc[:, :40]
-        df_data_speed = df_data.iloc[:, 40:]
-        L, _ = df_data_flow.shape
-        result_flow_pred = np.sum(df_data_flow.values.reshape((L,10,4)), axis=2)
-        result_speed_pred = np.sum((df_data_flow.values * df_data_speed.values).reshape((L,10,4)), axis=2) / result_flow_pred
-        df_data = np.hstack((result_flow_pred, result_speed_pred))
+
+        if self.loader_type in ['agg','agg_flow','agg_speed']:
+            df_data_flow = df_data.iloc[:, :40]
+            df_data_speed = df_data.iloc[:, 40:]
+            L, _ = df_data_flow.shape
+            result_flow_pred = np.sum(df_data_flow.values.reshape((L,10,4)), axis=2)
+            result_speed_pred = np.sum((df_data_flow.values * df_data_speed.values).reshape((L,10,4)), axis=2) / result_flow_pred
+            if self.loader_type == 'agg_flow':
+                df_data = result_flow_pred
+            elif self.loader_type == 'agg_speed':
+                df_data = result_speed_pred
+            else:
+                df_data = np.hstack((result_flow_pred, result_speed_pred))
+        else:
+            df_data = df_data.values
+
 
         if self.scale:
             if self.set_type != 3:
@@ -114,18 +141,17 @@ class Dataset_Custom(Dataset):
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
-        if (self.set_type == 0):
-            s_begin = index * 3
+        if self.set_type != 3: # when not pred
+            s_begin = index * self.data_shrink
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
         elif self.set_type == 3:
-            s_begin = index * self.seq_len
-            s_end = s_begin + self.seq_len
-            r_begin = s_end - self.label_len
-            r_end = r_begin + self.label_len + self.pred_len
-        else:
-            s_begin = index * 3
+            if self.task_name == 'imputation':
+                s_begin = index * self.seq_len
+            else:
+                s_begin = index * (self.seq_len + self.pred_len)
+
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -138,12 +164,10 @@ class Dataset_Custom(Dataset):
         return seq_x, seq_y, seq_x_mark, seq_y_mark
 
     def __len__(self):
-        if self.set_type == 0:
-            return int((len(self.data_x) - self.seq_len - self.pred_len) / 3 ) + 1
-        elif self.set_type == 3: # pred
-            return self.num_day
-        else:
-            return int((len(self.data_x) - self.seq_len - self.pred_len) / 3 ) + 1
+        if self.set_type != 3:
+            return int((len(self.data_x) - self.seq_len - self.pred_len) / self.data_shrink ) + 1
+        else: # self.set_type == 3: # pred
+            return int(len(self.data_x) / (self.seq_len + self.pred_len))
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
@@ -156,7 +180,7 @@ def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if flag == 'test' or flag == 'val' or flag == 'pred':
+    if flag == 'pred':
         shuffle_flag = False
         drop_last = True
         
@@ -182,6 +206,9 @@ def data_provider(args, flag, scaler=None):
         timeenc=timeenc,
         freq=freq,
         scaler=scaler,
+        loader_type=args.dataloader_type,
+        task_name = args.task_name,
+        data_shrink=args.data_shrink,
     )
     print(flag, len(data_set))
     data_loader = DataLoader(
