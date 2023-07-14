@@ -27,7 +27,7 @@ parser.add_argument('--root_path', type=str, default='./dataset/competition/trai
 parser.add_argument('--pred_root_path', type=str, default='./dataset/competition/test-5min', help='root path of the test data file') # competition
 parser.add_argument('--flow_data_path', type=str, default='flow-5min.csv', help='data file') # flow.csv
 parser.add_argument('--speed_data_path', type=str, default='speed-5min.csv', help='data file') # speed.csv
-parser.add_argument('--dataloader_type', type=str, default='speed', help='options:[agg:aggregation, flow_agg, speed_agg, flow, speed, multi: multidata but not agg]') # speed.csv
+parser.add_argument('--dataloader_type', type=str, default='flow', help='options:[agg:aggregation, flow_agg, speed_agg, flow, speed, multi: multidata but not agg]') # speed.csv
 parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 parser.add_argument('--freq', type=str, default='h',
                     help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
@@ -114,7 +114,7 @@ if args.is_training == 0:
 elif args.is_training == 2:
     # pred
     ii = 0
-    setting = '20230713_033319_long_term_forecast_speed_dm256_df256_el2_topk5_nk6_fq_h_Exp'
+    setting = '20230713_033341_long_term_forecast_flow_dm256_df256_el2_topk5_nk6_fq_h_Exp_3'
 
     exp = Exp(args)  # set experiments
     print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))

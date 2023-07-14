@@ -1,6 +1,0 @@
-20230713_033341_long_term_forecast_flow_dm256_df256_el2_topk5_nk6_fq_h_Exp  
-rmse:164.01, mae:122.73, mape:11.64%
-
-20230713_033319_long_term_forecast_speed_dm256_df256_el2_topk5_nk6_fq_h_Exp  
-rmse:7.14, mae:4.96, mape:6.58%
-
