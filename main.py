@@ -8,6 +8,7 @@ from exp_imputation import Exp_Imputation
 from exp_prediction import Exp_Prediction
 import datetime
 
+# random seed will control all random operations in all .py it calls
 fix_seed = 2021
 random.seed(fix_seed)
 torch.manual_seed(fix_seed)
