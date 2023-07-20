@@ -112,6 +112,7 @@ class Dataset_Custom(Dataset):
 
             # Generate a range of dates between start_date and end_date
             date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+            np.random.seed(2021)
 
             # Randomly select dates for each dataset
             train_dates = np.random.choice(date_range, size=num_days_train, replace=False)
