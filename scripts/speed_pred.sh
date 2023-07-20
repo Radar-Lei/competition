@@ -7,8 +7,8 @@ python -u main.py \
     --flow_data_path flow-5min.csv \
     --speed_data_path speed-5min.csv \
     --dataloader_type speed \
-    --freq h \
-    --data_shrink 3 \
+    --freq 5min \
+    --data_shrink 1 \
     \
     --seq_len 36 \
     --label_len 0 \
@@ -18,16 +18,17 @@ python -u main.py \
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 256 \
-    --d_ff 256 \
+    --d_model 128 \
+    --d_ff 128 \
     --top_k 5 \
     --num_kernels 6 \
+    --embed learned \
     --dropout 0.1 \
     \
     --lradj type3 \
     --lradj_factor 10 \
     --batch_size 32\
-    --patience 40 \
+    --patience 30 \
     --learning_rate 0.0001\
     \
     --gpu 0 \

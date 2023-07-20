@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import math
+import numpy as np
 
 class TokenEmbedding(nn.Module):
     def __init__(self, c_in, d_model):
@@ -62,6 +63,7 @@ class TemporalEmbedding(nn.Module):
         super(TemporalEmbedding, self).__init__()
 
         minute_size = 4
+        five_min_size = 288
         hour_size = 24
         weekday_size = 7
         day_size = 32
@@ -70,6 +72,9 @@ class TemporalEmbedding(nn.Module):
         Embed = FixedEmbedding if embed_type == 'fixed' else nn.Embedding
         if freq == 't':
             self.minute_embed = Embed(minute_size, d_model)
+        elif freq == '5min':
+            self.minute_embed = Embed(five_min_size, d_model)
+        
         self.hour_embed = Embed(hour_size, d_model)
         self.weekday_embed = Embed(weekday_size, d_model)
         self.day_embed = Embed(day_size, d_model)
@@ -98,6 +103,21 @@ class TimeFeatureEmbedding(nn.Module):
     def forward(self, x):
         return self.embed(x)
 
+def fea_encoding(pos, device, d_model=128):
+    """
+    sinusoidal position embedding for time embedding / timestamp embedding, not diffusion step embeeding
+    pos is the tensor of timestamps, of shape (B, L)
+    """
+    # pe is of shape (B, L, emb_time_dim), where emb_time_dim = d_model
+    pe = torch.zeros(pos.shape[0], pos.shape[1], d_model).to(device)
+    position = pos.unsqueeze(2) # (B, L) -> (B, L, 1)
+    div_term = 1 / torch.pow(
+        10000.0, torch.arange(0, d_model, 2).to(device) / d_model
+    )
+    pe[:, :, 0::2] = torch.sin(position * div_term)
+    pe[:, :, 1::2] = torch.cos(position * div_term)
+    return pe
+
 class DataEmbedding(nn.Module):
     def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
         super(DataEmbedding, self).__init__()
@@ -107,13 +127,30 @@ class DataEmbedding(nn.Module):
         self.temporal_embedding = TemporalEmbedding(d_model=d_model, embed_type=embed_type,
                                                     freq=freq) if embed_type != 'timeF' else TimeFeatureEmbedding(
             d_model=d_model, embed_type=embed_type, freq=freq)
+        self.fea_reduce = nn.Linear(c_in, 1, bias=False)
         self.dropout = nn.Dropout(p=dropout)
+        self.d_model = d_model
 
     def forward(self, x, x_mark):
+        B, L_hist, K = x.shape
+        fea_pos = np.arange(10).repeat(int(K/10))
+        fea_pos = torch.from_numpy(np.expand_dims(fea_pos, axis=0).repeat(B, axis=0)).to(x.device)
+        # fea_pos is of shape (B, K)
+        # fea_embedding is a tensor of shape (B, K, d_model)
+        fea_embedding = fea_encoding(fea_pos, x.device, d_model=self.d_model)
+        # (B, K, d_model) -> (B, 1, K, d_model) -> (B, L_hist, K, d_model) -> (B, L_hist, d_model, K)
+        fea_embedding = fea_embedding.unsqueeze(1).expand([B, L_hist, K, self.d_model]).permute(0,1,3,2)
+        # (B, L_hist, d_model, K) -> (B, L_hist, d_model, 1) -> (B, L_hist, d_model)
+        fea_embedding = self.fea_reduce(fea_embedding).squeeze(-1)
+        
         if x_mark is None:
-            x = self.value_embedding(x) + self.position_embedding(x)
+            # self.value_embedding(x) is of shape (B, L_hist, d_model)
+            # self.position_embedding(x) is of shape (B, L_hist, d_model)
+            # fea_embedding is of shape (B, L_hist, d_model)
+            # self.position_embedding(x) + fea_embedding is of shape (1, L_hist, d_model)
+            x = self.value_embedding(x) + self.position_embedding(x) + fea_embedding
         else:
-            x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x)
+            x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x) + fea_embedding
         return self.dropout(x)
     
 
