@@ -131,7 +131,7 @@ class Exp_Imputation(Exp_Basic):
                 loss = criterion(outputs[mask == 0], batch_x[mask == 0])
                 train_loss.append(loss.item())
 
-                if (i + 1) % 100 == 0:
+                if (i + 1) % 200 == 0:
                     # eval
                     outputs = outputs.detach().cpu().numpy()
                     pred = outputs

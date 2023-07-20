@@ -148,7 +148,7 @@ class Exp_Prediction(Exp_Basic):
                     loss = criterion(outputs, batch_y)
                     train_loss.append(loss.item())
 
-                if (i + 1) % 100 == 0:
+                if (i + 1) % 200 == 0:
                     # eval
                     outputs = outputs.detach().cpu().numpy()
                     pred = outputs[0] # (L_pred, K)

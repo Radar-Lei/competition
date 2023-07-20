@@ -27,7 +27,7 @@ python -u main.py \
     \
     --lradj type3 \
     --lradj_factor 10 \
-    --batch_size 32\
+    --batch_size 64\
     --patience 20 \
     --learning_rate 0.0005\
     \
