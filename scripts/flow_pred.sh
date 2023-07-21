@@ -29,6 +29,6 @@ python -u main.py \
     --lradj_factor 10 \
     --batch_size 32\
     --patience 30 \
-    --learning_rate 0.001\
+    --learning_rate 0.0001\
     \
     --gpu 0 \
