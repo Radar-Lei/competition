@@ -9,7 +9,7 @@ from exp_prediction import Exp_Prediction
 import datetime
 
 # random seed will control all random operations in all .py it calls
-fix_seed = 2023
+fix_seed = 20
 random.seed(fix_seed)
 torch.manual_seed(fix_seed)
 np.random.seed(fix_seed)
