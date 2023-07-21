@@ -9,7 +9,7 @@ from exp_prediction import Exp_Prediction
 import datetime
 
 # random seed will control all random operations in all .py it calls
-fix_seed = 2021
+fix_seed = 2023
 random.seed(fix_seed)
 torch.manual_seed(fix_seed)
 np.random.seed(fix_seed)
@@ -30,9 +30,9 @@ parser.add_argument('--flow_data_path', type=str, default='flow-5min.csv', help=
 parser.add_argument('--speed_data_path', type=str, default='speed-5min.csv', help='data file') # speed.csv
 parser.add_argument('--dataloader_type', type=str, default='flow', help='options:[agg:aggregation, flow_agg, speed_agg, flow, speed, multi: multidata but not agg]') # speed.csv
 parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
-parser.add_argument('--freq', type=str, default='5min',
+parser.add_argument('--freq', type=str, default='t',
                     help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
-parser.add_argument('--data_shrink', type=int, default=1, help='reduce the numbder of samples')
+parser.add_argument('--data_shrink', type=int, default=3, help='reduce the numbder of samples')
 
 # forecasting task
 parser.add_argument('--seq_len', type=int, default=36, help='input sequence length')
@@ -50,7 +50,7 @@ parser.add_argument('--d_model', type=int, default=128, help='dimension of model
 parser.add_argument('--d_ff', type=int, default=128, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') # 6
-parser.add_argument('--embed', type=str, default='learned',
+parser.add_argument('--embed', type=str, default='timeF',
                     help='time features encoding, options:[timeF, fixed, learned]')
 parser.add_argument('--dropout', type=float, default=0.1, help='dropout')
 parser.add_argument('--output_attention', action='store_true',default=False, help='whether to output attention in ecoder')

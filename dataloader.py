@@ -33,6 +33,8 @@ class Dataset_Custom(Dataset):
         type_map = {'train': 0, 'val': 1, 'test': 2, 'pred': 3}
         self.set_type = type_map[flag]
 
+        self.L_d = 288
+
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
@@ -74,8 +76,6 @@ class Dataset_Custom(Dataset):
         cols.remove('date')
         df_raw = df_raw[['date'] + cols]
 
-        self.L_d = 288
-
         if self.set_type == 3:
             self.num_day = 7
         else:
@@ -99,8 +99,8 @@ class Dataset_Custom(Dataset):
         else:
             df_data = df_data.values
         
-        num_days_train = int(self.num_day * 0.9)
-        num_days_test = int(self.num_day * 0.05)
+        num_days_train = int(self.num_day * 0.95)
+        num_days_test = int(self.num_day * 0.02)
         num_days_vali = self.num_day - num_days_train - num_days_test
 
         df_data = pd.DataFrame(df_data,index=pd.DatetimeIndex(df_raw['date'].values))
@@ -122,7 +122,10 @@ class Dataset_Custom(Dataset):
             vali_dates = vali_dates.astype('datetime64[D]')
             vali_dates = vali_dates.astype(datetime.datetime)
 
-            test_dates = np.random.choice(date_range[~np.isin(date_range, np.concatenate([train_dates, vali_dates]))], size=num_days_test, replace=False)
+            test_dates = np.random.choice(date_range[~np.isin(date_range, 
+                                                            np.concatenate([train_dates, vali_dates]))], 
+                                                            size=num_days_test, 
+                                                            replace=False)
             test_dates = test_dates.astype('datetime64[D]')
             test_dates = test_dates.astype(datetime.datetime)
 
@@ -168,21 +171,29 @@ class Dataset_Custom(Dataset):
         if self.set_type == 0:
             self.data_x = train_data
             self.data_y = train_data
+            self.curr_num_days = len(train_dates)
         elif self.set_type == 1:
             self.data_x = vali_data
             self.data_y = vali_data
+            self.curr_num_days = len(vali_dates)
         elif self.set_type == 2:
             self.data_x = test_data
             self.data_y = test_data
+            self.curr_num_days = len(test_dates)
         else:
             self.data_x = pred_data
             self.data_y = pred_data
+
+        # prevent the sampled sequence to be across two days
+        if self.set_type != 3:
+            self.valid_indices = [i for i in range(self.L_d * self.curr_num_days) if i % self.L_d 
+                                <= (self.L_d - self.seq_len - self.pred_len)][::self.data_shrink]
 
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
         if self.set_type != 3: # when not pred
-            s_begin = index * self.data_shrink
+            s_begin = self.valid_indices[index]
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -205,7 +216,7 @@ class Dataset_Custom(Dataset):
 
     def __len__(self):
         if self.set_type != 3:
-            return int((len(self.data_x) - self.seq_len - self.pred_len) / self.data_shrink ) + 1
+            return len(self.valid_indices)
         else: # self.set_type == 3: # pred
             return int(len(self.data_x) / (self.seq_len + self.pred_len))
 
