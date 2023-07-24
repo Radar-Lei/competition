@@ -97,7 +97,7 @@ class Model(nn.Module):
         # reshape for computing, self.alpha_torch is of shape (T,) -> (T,1,1)
         self.alpha_torch = torch.tensor(self.alpha_hat).float().to(configs.gpu).unsqueeze(1).unsqueeze(1)
 
-        self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq, configs.dropout)
+        self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq, configs.dropout, configs.diff_steps)
 
         self.model = nn.ModuleList([TimesBlock(configs)
                                     for _ in range(configs.e_layers)])
@@ -121,7 +121,8 @@ class Model(nn.Module):
         noisy_target = (1-mask) * noisy_data
         
         # embedding # enc_out is of shape (B, L_hist, 2*d_model)
-        enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc)
+        # also embedding diffusion step t of shape ([B])
+        enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, t)
 
         for i in range(self.layer):
             enc_out = self.layer_norm(self.model[i](enc_out))
@@ -131,7 +132,7 @@ class Model(nn.Module):
 
         return dec_out
     
-    def evaluate(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
+    def evaluate_acc(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
         B,L,K = x_enc.shape
         imputed_samples = torch.zeros(B, self.configs.diff_samples, L, K).to(self.configs.gpu)
 
@@ -152,7 +153,7 @@ class Model(nn.Module):
                 noisy_target = (1-mask) * sample
 
                 # embedding # enc_out is of shape (B, L_hist, 2*d_model)
-                enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc)
+                enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu))
 
                 for i in range(self.layer):
                     enc_out = self.layer_norm(self.model[i](enc_out))
@@ -171,6 +172,46 @@ class Model(nn.Module):
 
                 s -= self.configs.sampling_shrink_interval
 
-            imputed_samples[:, i, :, :] = sample
+            imputed_samples[:, i, :, :] = sample.detach()
+
+        return imputed_samples
+    
+    def evaluate(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
+        B,L,K = x_enc.shape
+        imputed_samples = torch.zeros(B, self.configs.diff_samples, L, K).to(self.configs.gpu)
+
+        for i in range(self.configs.diff_samples):
+            # diffusion starts from a pure Gaussian noise
+            sample = torch.randn_like(x_enc)
+
+            # initial diffusion step start from N-1
+            for s in range(self.configs.diff_steps - 1, -1, -1):
+                cond_obs = mask * x_enc
+                noisy_target = (1-mask) * sample
+
+                # embedding # enc_out is of shape (B, L_hist, 2*d_model)
+                enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu))
+
+                for i in range(self.layer):
+                    enc_out = self.layer_norm(self.model[i](enc_out))
+
+                # dec_out is of shape (B, L_pred, K)
+                dec_out = self.projection(enc_out)
+
+                coeff1 = 1 / self.alpha[s] ** 0.5
+                coeff2 = (1 - self.alpha[s]) / (1 - self.alpha_hat[s]) ** 0.5
+
+                sample = coeff1 * (sample - coeff2 * dec_out)
+
+                # if then it's the last step, no need to add noise
+                if s > 0: 
+                    noise = torch.randn_like(sample)
+                    sigma = (
+                        (1.0 - self.alpha_hat[s - 1]) / (1.0 - self.alpha_hat[s]) * self.beta[s]
+                    ) ** 0.5                    
+                    sample += sigma * noise
+            
+            # use detech to create new tensor on the device, reserve sample for next iteration
+            imputed_samples[:, i, :, :] = sample.detach()
 
         return imputed_samples

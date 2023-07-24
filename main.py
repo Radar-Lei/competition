@@ -58,7 +58,7 @@ parser.add_argument('--output_attention', action='store_true',default=False, hel
 # diffusion
 parser.add_argument('--diff_schedule', type=str, default='quad', help='schedule for diffusion, options:[quad, linear]')
 parser.add_argument('--diff_steps', type=int, default=100, help='num of diffusion steps')
-parser.add_argument('--diff_samples', type=int, default=100, help='num of diffusion samples')
+parser.add_argument('--diff_samples', type=int, default=8, help='num of diffusion samples')
 parser.add_argument('--beta_start', type=float, default=0.0001, help='start beta for diffusion')
 parser.add_argument('--beta_end', type=float, default=0.2, help='end beta for diffusion')
 parser.add_argument('--sampling_shrink_interval', type=int, default=4, help='shrink interval for sampling')

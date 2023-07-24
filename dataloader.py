@@ -99,8 +99,8 @@ class Dataset_Custom(Dataset):
         else:
             df_data = df_data.values
         
-        num_days_train = int(self.num_day * 0.85)
-        num_days_test = int(self.num_day * 0.05)
+        num_days_train = int(self.num_day * 0.95)
+        num_days_test = int(self.num_day * 0.02)
         num_days_vali = self.num_day - num_days_train - num_days_test
 
         df_data = pd.DataFrame(df_data,index=pd.DatetimeIndex(df_raw['date'].values))
@@ -193,16 +193,19 @@ class Dataset_Custom(Dataset):
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
-        if self.set_type != 3: # when not pred
+        if self.set_type == 0: # when not pred
             s_begin = self.valid_indices[index]
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
+        elif (self.set_type == 1) or (self.set_type == 2):
+            # further skip some samples
+            s_begin = self.valid_indices[::self.data_shrink][index]
+            s_end = s_begin + self.seq_len
+            r_begin = s_end - self.label_len
+            r_end = r_begin + self.label_len + self.pred_len
         elif self.set_type == 3:
-            if self.task_name == 'imputation':
-                s_begin = index * self.seq_len
-            else:
-                s_begin = index * (self.seq_len + self.pred_len)
+            s_begin = index * (self.seq_len + self.pred_len)
 
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
@@ -216,8 +219,10 @@ class Dataset_Custom(Dataset):
         return seq_x, seq_y, seq_x_mark, seq_y_mark
 
     def __len__(self):
-        if self.set_type != 3:
+        if self.set_type == 0:
             return len(self.valid_indices)
+        elif (self.set_type == 1) or (self.set_type == 2):
+            return len(self.valid_indices[::self.data_shrink])
         else: # self.set_type == 3: # pred
             return int(len(self.data_x) / (self.seq_len + self.pred_len))
 
@@ -232,7 +237,7 @@ def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if (flag == 'pred'):
+    if (flag == 'pred') or (flag == 'test'):
         shuffle_flag = False
         drop_last = True
         

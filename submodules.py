@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import math
 import numpy as np
+import torch.nn.functional as F
 
 class TokenEmbedding(nn.Module):
     def __init__(self, c_in, d_model):
@@ -119,8 +120,41 @@ def fea_encoding(pos, device, d_model=128):
     pe[:, :, 1::2] = torch.cos(position * div_term)
     return pe
 
+class DiffusionEmbedding(nn.Module):
+    def __init__(self, num_steps, embedding_dim=128, projection_dim=None):
+        super().__init__()
+        if projection_dim is None:
+            projection_dim = embedding_dim
+        self.register_buffer(
+            "embedding",
+            self._build_embedding(num_steps, embedding_dim / 2),
+            persistent=False,
+        )
+        self.projection1 = nn.Linear(embedding_dim, projection_dim)
+        self.projection2 = nn.Linear(projection_dim, projection_dim)
+
+    def forward(self, diffusion_step):
+        # square bracket indexing 
+        x = self.embedding[diffusion_step]
+        x = self.projection1(x)
+        x = F.silu(x)
+        x = self.projection2(x)
+        x = F.silu(x)
+        return x
+
+    def _build_embedding(self, num_steps, dim=64):
+        steps = torch.arange(num_steps).unsqueeze(1)  # (T,1)
+        div_term = 1 / torch.pow(
+            10000.0, torch.arange(0, dim, 1) / dim
+        ) 
+        div_term = div_term.unsqueeze(0)  # (1,dim)
+        table = steps * div_term  # (T,dim)
+        table = torch.cat([torch.sin(table), torch.cos(table)], dim=1)  # (T,dim*2)
+        return table
+
+
 class DataEmbedding(nn.Module):
-    def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
+    def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1, diff_steps=100):
         super(DataEmbedding, self).__init__()
 
         self.cond_value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
@@ -130,10 +164,13 @@ class DataEmbedding(nn.Module):
                                                     freq=freq) if embed_type != 'timeF' else TimeFeatureEmbedding(
             d_model=d_model, embed_type=embed_type, freq=freq)
         self.fea_reduce = nn.Linear(c_in, 1, bias=False)
+        # embedding layer for diffusion step
+        self.diffusion_embedding = DiffusionEmbedding(num_steps=diff_steps, embedding_dim=d_model)
+
         self.dropout = nn.Dropout(p=dropout)
         self.d_model = d_model
 
-    def forward(self, cond_obs, noisy_target, x_mark):
+    def forward(self, cond_obs, noisy_target, x_mark, diff_step):
         B, L_hist, K = cond_obs.shape
         fea_pos = np.arange(10).repeat(int(K/10))
         fea_pos = torch.from_numpy(np.expand_dims(fea_pos, axis=0).repeat(B, axis=0)).to(cond_obs.device)
@@ -145,6 +182,9 @@ class DataEmbedding(nn.Module):
         # (B, L_hist, d_model, K) -> (B, L_hist, d_model, 1) -> (B, L_hist, d_model)
         fea_embedding = self.fea_reduce(fea_embedding).squeeze(-1)
 
+        # (B,) -> (B, d_model) -> (B, 1, d_model), this will broadcasting to (B, L_hist, d_model)
+        diff_step_embedding = self.diffusion_embedding(diff_step).unsqueeze(1)
+
         cond_pos_embedding = self.position_embedding(cond_obs)
         noisy_pos_embedding = self.position_embedding(noisy_target)
 
@@ -152,14 +192,13 @@ class DataEmbedding(nn.Module):
         
         if x_mark is None:
             # self.value_embedding(x) is of shape (B, L_hist, d_model)
-            # self.position_embedding(x) is of shape (B, L_hist, d_model)
             # fea_embedding is of shape (B, L_hist, d_model)
             # self.position_embedding(x) is of shape (1, L_hist, d_model)
-            x_cond = self.cond_value_embedding(cond_obs) + cond_pos_embedding + fea_embedding
-            x_noisy = self.noisy_value_embedding(noisy_target) + noisy_pos_embedding + fea_embedding
+            x_cond = self.cond_value_embedding(cond_obs) + cond_pos_embedding + fea_embedding + diff_step_embedding
+            x_noisy = self.noisy_value_embedding(noisy_target) + noisy_pos_embedding + fea_embedding + diff_step_embedding
         else:
-            x_cond = self.cond_value_embedding(cond_obs) + tem_embedding + cond_pos_embedding + fea_embedding
-            x_noisy = self.noisy_value_embedding(noisy_target) + tem_embedding + noisy_pos_embedding + fea_embedding
+            x_cond = self.cond_value_embedding(cond_obs) + tem_embedding + cond_pos_embedding + fea_embedding + diff_step_embedding
+            x_noisy = self.noisy_value_embedding(noisy_target) + tem_embedding + noisy_pos_embedding + fea_embedding + diff_step_embedding
         
         # x is of shape (B, L_hist, 2*d_model)
         x = torch.cat([x_cond, x_noisy], dim=-1)

@@ -34,6 +34,11 @@ class Exp_Imputation(Exp_Basic):
 
     def vali(self, vali_data, vali_loader, criterion):
         total_loss = []
+        all_outputs = []
+        all_targets = []
+        all_medians = []
+        all_masks = []
+
         self.model.eval()
 
         _, K = vali_data[0][0].shape
@@ -62,19 +67,39 @@ class Exp_Imputation(Exp_Basic):
 
                 target_mask = actual_mask - mask
 
-                outputs = self.model.evaluate(batch_x, batch_x_mark, None, None, mask)
+                # outputs is of shape (B, n_samples, L_hist, K)
+                outputs = self.model.evaluate_acc(batch_x, batch_x_mark, None, None, mask)
 
-                f_dim = 0
-                outputs = outputs[:, :, f_dim:]
-                pred = outputs.detach().cpu()
-                true = batch_x.detach().cpu()
-                mask = mask.detach().cpu()
+                # eval
+                B, n_samples, L, K = outputs.shape
+                # unnormalize outputing samples and current target
+                outputs = outputs.detach().cpu().numpy()
+                outputs = outputs.reshape(B * n_samples * L, K)
+                outputs = vali_data.inverse_transform(outputs)
+                outputs = outputs.reshape(B, n_samples, L, K)
 
-                loss = criterion(pred[mask == 0], true[mask == 0])
-                total_loss.append(loss)
-        total_loss = np.average(total_loss)
+                # current target of shape (B, L_hist, K)
+                c_target = batch_x.detach().cpu().numpy()
+                c_target = c_target.reshape(B * L, K)
+                c_target = vali_data.inverse_transform(c_target)
+                c_target = c_target.reshape(B, L, K)
+
+                # (B, n_samples, L_hist, K) -> (B, L_hist, K)
+                samples_median = np.median(outputs, axis=1)
+
+                all_outputs.append(outputs)
+                all_medians.append(samples_median)
+                all_targets.append(c_target)
+                all_masks.append(target_mask.detach().cpu())
+        
+        eval_medians = np.concatenate(all_medians, 0) # (B*N_B, L_hist, K)
+        eval_targets = np.concatenate(all_targets, 0) # (B*N_B, L_hist, K)
+        eval_masks = np.concatenate(all_masks, 0) # (B*N_B, L_hist, K)
+        mae, mse, rmse, mape, mspe = metric(eval_medians[eval_masks == 0], eval_targets[eval_masks == 0])
+        
+
         self.model.train()
-        return total_loss
+        return rmse, mape
 
     def train(self, setting):
         train_data, train_loader = self._get_data(flag='train')
@@ -138,7 +163,7 @@ class Exp_Imputation(Exp_Basic):
                 f_dim = 0
                 # outputs is of shape (B, L_hist, K)
                 outputs = outputs[:, :, f_dim:]
-                loss = criterion(outputs[target_mask == 0], batch_x[target_mask == 0])
+                loss = criterion(outputs[target_mask == 1], batch_x[target_mask == 1])
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -152,14 +177,16 @@ class Exp_Imputation(Exp_Basic):
                 loss.backward()
                 model_optim.step()
             
-            print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
+            # end time for the current epoch
+            curr_epoch_time = time.time()
+            print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
-            vali_loss = self.vali(vali_data, vali_loader, criterion)
-            test_loss = self.vali(test_data, test_loader, criterion)
+            vali_rmse, _ = self.vali(vali_data, vali_loader, criterion)
+            test_rmse, _ = self.vali(test_data, test_loader, criterion)
 
-            print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
-                epoch + 1, train_steps, train_loss, vali_loss, test_loss))
-            early_stopping(vali_loss, self.model, path)
+            print("Epoch: {0}, eval cost time: {1:.2f}, Steps: {2} | Train Loss: {3:.7f} Vali RMES: {4:.2f} Test RMSE: {5:.2f}".format(
+                epoch + 1, time.time()-curr_epoch_time, train_steps, train_loss, vali_rmse, test_rmse))
+            early_stopping(vali_rmse, self.model, path)
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
@@ -213,8 +240,6 @@ class Exp_Imputation(Exp_Basic):
                 outputs = self.model(inp, batch_x_mark, None, None, mask)
 
                 # eval
-                f_dim = 0
-                outputs = outputs[:, :, f_dim:]
                 outputs = outputs.detach().cpu().numpy()
                 pred = outputs
                 true = batch_x.detach().cpu().numpy()
