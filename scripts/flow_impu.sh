@@ -25,8 +25,13 @@ python -u main.py \
     --embed timeF \
     --dropout 0.1 \
     \
-    --lradj type3 \
-    --lradj_factor 20 \
+    --diff_schedule quad \
+    --diff_steps 100 \
+    --diff_samples 100 \
+    --beta_start 0.0001 \
+    --bata_end 0.2 \
+    --sampling_shrink_interval 4 \
+    \
     --batch_size 32\
     --patience 30 \
     --learning_rate 0.0001\

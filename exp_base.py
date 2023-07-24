@@ -1,12 +1,13 @@
 import os
 import torch
-from models import TimesNet
+from models import TimesNet, DiffusionBase
 
 class Exp_Basic(object):
     def __init__(self, args):
         self.args = args
         self.model_dict = {
             'TimesNet': TimesNet,
+            'DiffusionBase': DiffusionBase
         }
         self.device = self._acquire_device()
         self.model = self._build_model().to(self.device)

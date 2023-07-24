@@ -123,7 +123,8 @@ class DataEmbedding(nn.Module):
     def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
         super(DataEmbedding, self).__init__()
 
-        self.value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
+        self.cond_value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
+        self.noisy_value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
         self.position_embedding = PositionalEmbedding(d_model=d_model)
         self.temporal_embedding = TemporalEmbedding(d_model=d_model, embed_type=embed_type,
                                                     freq=freq) if embed_type != 'timeF' else TimeFeatureEmbedding(
@@ -132,7 +133,7 @@ class DataEmbedding(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.d_model = d_model
 
-    def forward(self, x, x_mark):
+    def forward(self, cond_obs, noisy_target, x_mark):
         B, L_hist, K = x.shape
         fea_pos = np.arange(10).repeat(int(K/10))
         fea_pos = torch.from_numpy(np.expand_dims(fea_pos, axis=0).repeat(B, axis=0)).to(x.device)
@@ -143,15 +144,26 @@ class DataEmbedding(nn.Module):
         fea_embedding = fea_embedding.unsqueeze(1).expand([B, L_hist, K, self.d_model]).permute(0,1,3,2)
         # (B, L_hist, d_model, K) -> (B, L_hist, d_model, 1) -> (B, L_hist, d_model)
         fea_embedding = self.fea_reduce(fea_embedding).squeeze(-1)
+
+        cond_pos_embedding = self.position_embedding(cond_obs)
+        noisy_pos_embedding = self.position_embedding(noisy_target)
+
+        tem_embedding = self.temporal_embedding(x_mark)
         
         if x_mark is None:
             # self.value_embedding(x) is of shape (B, L_hist, d_model)
             # self.position_embedding(x) is of shape (B, L_hist, d_model)
             # fea_embedding is of shape (B, L_hist, d_model)
-            # self.position_embedding(x) + fea_embedding is of shape (1, L_hist, d_model)
-            x = self.value_embedding(x) + self.position_embedding(x) + fea_embedding
+            # self.position_embedding(x) is of shape (1, L_hist, d_model)
+            x_cond = self.cond_value_embedding(cond_obs) + cond_pos_embedding + fea_embedding
+            x_noisy = self.noisy_value_embedding(noisy_target) + noisy_pos_embedding + fea_embedding
         else:
-            x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x) + fea_embedding
+            x_cond = self.cond_value_embedding(cond_obs) + tem_embedding + cond_pos_embedding + fea_embedding
+            x_noisy = self.noisy_value_embedding(noisy_target) + tem_embedding + noisy_pos_embedding + fea_embedding
+        
+        # x is of shape (B, L_hist, 2*d_model)
+        x = torch.cat([x_cond, x_noisy], dim=-1)
+
         return self.dropout(x)
     
 
