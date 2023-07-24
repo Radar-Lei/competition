@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser(description='TimesNet')
 
 # basic config
 parser.add_argument('--task_name', type=str, default='long_term_forecast',
-                    help='task name, options:[long_term_forecast, short_term_forecast, imputation]')
+                    help='task name, options:[long_term_forecast, imputation]')
 parser.add_argument('--is_training', type=int, default=0, help='status, options:[0:training, 1:testing, 2:pred]')
 parser.add_argument('--model', type=str, default='TimesNet',
                         help='model name, options: [Autoformer, Transformer, TimesNet]')

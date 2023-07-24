@@ -131,21 +131,7 @@ class Exp_Imputation(Exp_Basic):
                 loss = criterion(outputs[mask == 0], batch_x[mask == 0])
                 train_loss.append(loss.item())
 
-                if (i + 1) % 200 == 0:
-                    # eval
-                    outputs = outputs.detach().cpu().numpy()
-                    pred = outputs
-                    true = batch_x.detach().cpu().numpy()
-
-                    pred = train_data.inverse_transform(pred[0])
-                    true = train_data.inverse_transform(true[0])
-
-                    for j in range(true.shape[1]):
-                        filled = true[:, j].copy()
-                        filled = filled * mask[0, :, j].detach().cpu().numpy() + \
-                                    pred[:, j] * (1 - mask[0, :, j].detach().cpu().numpy())
-                        visual(true[:, j], filled, os.path.join(folder_path, str(i+j) + '.png'))
-
+                if (i + 1) % 100 == 0:
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
                     speed = (time.time() - time_now) / iter_count
                     left_time = speed * ((self.args.train_epochs - epoch) * train_steps - i)
@@ -155,6 +141,21 @@ class Exp_Imputation(Exp_Basic):
 
                 loss.backward()
                 model_optim.step()
+            
+            if (epoch + 1) % 1 == 0:
+                # eval
+                outputs = outputs.detach().cpu().numpy()
+                pred = outputs
+                true = batch_x.detach().cpu().numpy()
+
+                pred = train_data.inverse_transform(pred[0])
+                true = train_data.inverse_transform(true[0])
+
+                for j in range(true.shape[1]):
+                    filled = true[:, j].copy()
+                    filled = filled * mask[0, :, j].detach().cpu().numpy() + \
+                                pred[:, j] * (1 - mask[0, :, j].detach().cpu().numpy())
+                    visual(true[:, j], filled, os.path.join(folder_path, str(epoch) + '_' + str(j) + '.png'))
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
