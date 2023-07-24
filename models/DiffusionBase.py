@@ -140,6 +140,8 @@ class Model(nn.Module):
             sample = torch.randn_like(x_enc)
 
             # initial diffusion step start from N-1
+            # if shring interval = -2, then 99, 97, 95, ... -1, 50 reverse steps
+            # if shring interval = -1, then 99, 98, 97, there's no shrink
             s = self.configs.diff_steps - 1
 
             while True:

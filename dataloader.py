@@ -232,7 +232,7 @@ def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if (flag == 'pred') or (flag == 'test'):
+    if (flag == 'pred'):
         shuffle_flag = False
         drop_last = True
         
