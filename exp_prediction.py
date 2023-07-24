@@ -164,7 +164,7 @@ class Exp_Prediction(Exp_Basic):
                     loss.backward()
                     model_optim.step()
 
-            if (epoch + 1) % 1 == 0:
+            if (epoch + 1) % 5 == 0:
                 # eval
                 outputs = outputs.detach().cpu().numpy()
                 pred = outputs[0] # (L_pred, K)
