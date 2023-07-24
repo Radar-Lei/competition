@@ -134,12 +134,12 @@ class DataEmbedding(nn.Module):
         self.d_model = d_model
 
     def forward(self, cond_obs, noisy_target, x_mark):
-        B, L_hist, K = x.shape
+        B, L_hist, K = cond_obs.shape
         fea_pos = np.arange(10).repeat(int(K/10))
-        fea_pos = torch.from_numpy(np.expand_dims(fea_pos, axis=0).repeat(B, axis=0)).to(x.device)
+        fea_pos = torch.from_numpy(np.expand_dims(fea_pos, axis=0).repeat(B, axis=0)).to(cond_obs.device)
         # fea_pos is of shape (B, K)
         # fea_embedding is a tensor of shape (B, K, d_model)
-        fea_embedding = fea_encoding(fea_pos, x.device, d_model=self.d_model)
+        fea_embedding = fea_encoding(fea_pos, cond_obs.device, d_model=self.d_model)
         # (B, K, d_model) -> (B, 1, K, d_model) -> (B, L_hist, K, d_model) -> (B, L_hist, d_model, K)
         fea_embedding = fea_embedding.unsqueeze(1).expand([B, L_hist, K, self.d_model]).permute(0,1,3,2)
         # (B, L_hist, d_model, K) -> (B, L_hist, d_model, 1) -> (B, L_hist, d_model)

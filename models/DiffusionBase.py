@@ -32,10 +32,10 @@ class TimesBlock(nn.Module):
 
         # parameter-efficient design
         self.conv = nn.Sequential(
-            Inception_Block_V1(configs.d_model, configs.d_ff,
+            Inception_Block_V1(configs.d_model * 2, configs.d_ff,
                                num_kernels=configs.num_kernels),
             nn.GELU(),
-            Inception_Block_V1(configs.d_ff, configs.d_model,
+            Inception_Block_V1(configs.d_ff, configs.d_model * 2,
                                num_kernels=configs.num_kernels)
         )
 
@@ -97,14 +97,14 @@ class Model(nn.Module):
         # reshape for computing, self.alpha_torch is of shape (T,) -> (T,1,1)
         self.alpha_torch = torch.tensor(self.alpha_hat).float().to(configs.gpu).unsqueeze(1).unsqueeze(1)
 
-        self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq, configs.gpu)
+        self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq, configs.dropout)
 
         self.model = nn.ModuleList([TimesBlock(configs)
                                     for _ in range(configs.e_layers)])
         self.layer = configs.e_layers
-        self.layer_norm = nn.LayerNorm(configs.d_model)        
+        self.layer_norm = nn.LayerNorm(configs.d_model * 2)        
 
-        self.projection = nn.Linear(configs.d_model, configs.c_out, bias=True)
+        self.projection = nn.Linear(configs.d_model * 2, configs.c_out, bias=True)
 
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
@@ -117,11 +117,6 @@ class Model(nn.Module):
         noise = torch.randn_like(x_enc) # (B,L,K)
         noisy_data = (current_alpha ** 0.5) * x_enc + ((1.0 - current_alpha) ** 0.5) * noise
 
-        # mask for the NaN values in the original data
-        actual_mask = torch.ne(x_enc, 0).float()
-        
-        target_mask = actual_mask - mask
-        
         cond_obs = mask * x_enc
         noisy_target = (1-mask) * noisy_data
         
@@ -129,10 +124,51 @@ class Model(nn.Module):
         enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc)
 
         for i in range(self.layer):
-            enc_out = self.laryer_norm(self.model[i](enc_out))
+            enc_out = self.layer_norm(self.model[i](enc_out))
 
         # dec_out is of shape (B, L_pred, K)
         dec_out = self.projection(enc_out)
 
         return dec_out
+    
+    def evaluate(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
+        B,L,K = x_enc.shape
+        imputed_samples = torch.zeros(B, self.configs.diff_samples, L, K).to(self.configs.gpu)
 
+        for i in range(self.configs.diff_samples):
+            # diffusion starts from a pure Gaussian noise
+            sample = torch.randn_like(x_enc)
+
+            # initial diffusion step start from N-1
+            s = self.configs.diff_steps - 1
+
+            while True:
+                if s < self.configs.sampling_shrink_interval:
+                    break
+                
+                cond_obs = mask * x_enc
+                noisy_target = (1-mask) * sample
+
+                # embedding # enc_out is of shape (B, L_hist, 2*d_model)
+                enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc)
+
+                for i in range(self.layer):
+                    enc_out = self.layer_norm(self.model[i](enc_out))
+
+                # dec_out is of shape (B, L_pred, K)
+                dec_out = self.projection(enc_out)
+
+                coeff = self.alpha_hat[s-self.configs.sampling_shrink_interval]
+                sigma = (((1 - coeff) / (1 - self.alpha_hat[s])) ** 0.5) * ((1-self.alpha_hat[s] / coeff) ** 0.5)
+                sample = (coeff ** 0.5) * ((sample - ((1-self.alpha_hat[s]) ** 0.5) * dec_out) / (self.alpha_hat[s] ** 0.5)) + ((1 - coeff - sigma ** 2) ** 0.5) * dec_out
+
+                # if s == self.sampling_shrink_interval, then it's the last step, no need to add noise
+                if s > self.configs.sampling_shrink_interval: 
+                    noise = torch.randn_like(sample)
+                    sample += sigma * noise
+
+                s -= self.configs.sampling_shrink_interval
+
+            imputed_samples[:, i, :, :] = sample
+
+        return imputed_samples

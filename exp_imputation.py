@@ -46,7 +46,7 @@ class Exp_Imputation(Exp_Basic):
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
                 # random mask
-                B, T, N = batch_x.shape
+                B, L, K = batch_x.shape
                 """
                 B = batch size
                 T = seq len
@@ -56,9 +56,13 @@ class Exp_Imputation(Exp_Basic):
                 # mask[mask <= self.args.mask_rate] = 0  # masked
                 # mask[mask > self.args.mask_rate] = 1  # remained
                 mask = mask.to(self.device)
-                inp = batch_x.masked_fill(mask == 0, 0)
+                # mask for the NaN values in the original data
+                actual_mask = torch.ne(batch_x, 0).float()
+                mask = actual_mask * mask
 
-                outputs = self.model(inp, batch_x_mark, None, None, mask)
+                target_mask = actual_mask - mask
+
+                outputs = self.model.evaluate(batch_x, batch_x_mark, None, None, mask)
 
                 f_dim = 0
                 outputs = outputs[:, :, f_dim:]
@@ -118,17 +122,23 @@ class Exp_Imputation(Exp_Basic):
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
                 # random mask
-                # B, T, N = batch_x.shape
+                # B, L_hist, K = batch_x.shape
                 # mask = torch.rand((B, T, N)).to(self.device)
                 # mask[mask <= self.args.mask_rate] = 0  # masked
                 # mask[mask > self.args.mask_rate] = 1  # remained
-                inp = batch_x.masked_fill(mask == 0, 0)
 
-                outputs = self.model(inp, batch_x_mark, None, None, mask)
+                # mask for the NaN values in the original data
+                actual_mask = torch.ne(batch_x, 0).float()
+                mask = actual_mask * mask
+
+                target_mask = actual_mask - mask
+                
+                outputs = self.model(batch_x, batch_x_mark, None, None, mask)
 
                 f_dim = 0
+                # outputs is of shape (B, L_hist, K)
                 outputs = outputs[:, :, f_dim:]
-                loss = criterion(outputs[mask == 0], batch_x[mask == 0])
+                loss = criterion(outputs[target_mask == 0], batch_x[target_mask == 0])
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -142,21 +152,6 @@ class Exp_Imputation(Exp_Basic):
                 loss.backward()
                 model_optim.step()
             
-            if (epoch + 1) % 5 == 0:
-                # eval
-                outputs = outputs.detach().cpu().numpy()
-                pred = outputs
-                true = batch_x.detach().cpu().numpy()
-
-                pred = train_data.inverse_transform(pred[0])
-                true = train_data.inverse_transform(true[0])
-
-                for j in range(true.shape[1]):
-                    filled = true[:, j].copy()
-                    filled = filled * mask[0, :, j].detach().cpu().numpy() + \
-                                pred[:, j] * (1 - mask[0, :, j].detach().cpu().numpy())
-                    visual(true[:, j], filled, os.path.join(folder_path, str(epoch) + '_' + str(j) + '.png'))
-
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
