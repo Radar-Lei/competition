@@ -91,8 +91,9 @@ current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 if args.is_training == 0:
     # train
     for ii in range(args.itr):
-        setting = '{}_{}_{}_dm{}_df{}_el{}_topk{}_nk{}_fq_{}_{}'.format(
+        setting = '{}_{}_{}_{}_dm{}_df{}_el{}_topk{}_nk{}_fq_{}_{}'.format(
             current_time,
+            args.model,
             args.task_name,
             args.dataloader_type,
             args.d_model,
