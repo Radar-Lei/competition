@@ -31,6 +31,27 @@ class Exp_Imputation(Exp_Basic):
     def _select_criterion(self):
         criterion = nn.MSELoss()
         return criterion
+    
+    def _quantile_loss(self, target, forecast, q: float, eval_points) -> float:
+        return 2 * np.sum(
+            np.abs((forecast - target) * eval_points * ((target <= forecast) * 1.0 - q))
+        )
+
+    def _calc_denominator(self, target, eval_points):
+        return np.sum(np.abs(target * eval_points))
+
+    def _calc_quantile_CRPS(self, target, forecast, eval_points):
+        quantiles = np.arange(0.05, 1.0, 0.05)
+        denom = self._calc_denominator(target, eval_points)
+        CRPS = 0
+        for i in range(len(quantiles)):
+            q_pred = []
+            for j in range(len(forecast)):
+                q_pred.append(np.quantile(forecast[j : j + 1], quantiles[i], axis=1))
+            q_pred = np.concatenate(q_pred, axis=0)
+            q_loss = self._quantile_loss(target, q_pred, quantiles[i], eval_points)
+            CRPS += q_loss / denom
+        return CRPS / len(quantiles)
 
     def vali(self, vali_data, vali_loader, criterion):
         total_loss = []
@@ -68,7 +89,7 @@ class Exp_Imputation(Exp_Basic):
                 target_mask = actual_mask - mask
 
                 # outputs is of shape (B, n_samples, L_hist, K)
-                outputs = self.model.evaluate_acc(batch_x, batch_x_mark, None, None, mask)
+                outputs = self.model.evaluate(batch_x, batch_x_mark, None, None, mask)
 
                 # eval
                 B, n_samples, L, K = outputs.shape
@@ -95,7 +116,7 @@ class Exp_Imputation(Exp_Basic):
         eval_medians = np.concatenate(all_medians, 0) # (B*N_B, L_hist, K)
         eval_targets = np.concatenate(all_targets, 0) # (B*N_B, L_hist, K)
         eval_masks = np.concatenate(all_masks, 0) # (B*N_B, L_hist, K)
-        mae, mse, rmse, mape, mspe = metric(eval_medians[eval_masks == 0], eval_targets[eval_masks == 0])
+        _, _, rmse, mape, _ = metric(eval_medians[eval_masks == 0], eval_targets[eval_masks == 0])
         
 
         self.model.train()
@@ -181,15 +202,19 @@ class Exp_Imputation(Exp_Basic):
             curr_epoch_time = time.time()
             print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
-            vali_rmse, _ = self.vali(vali_data, vali_loader, criterion)
-            test_rmse, _ = self.vali(test_data, test_loader, criterion)
+            if (epoch + 1) % 5 == 0:
+                vali_rmse, _ = self.vali(vali_data, vali_loader, criterion)
+                test_rmse, _ = self.vali(test_data, test_loader, criterion)
 
-            print("Epoch: {0}, eval cost time: {1:.2f}, Steps: {2} | Train Loss: {3:.7f} Vali RMES: {4:.2f} Test RMSE: {5:.2f}".format(
-                epoch + 1, time.time()-curr_epoch_time, train_steps, train_loss, vali_rmse, test_rmse))
-            early_stopping(vali_rmse, self.model, path)
-            if early_stopping.early_stop:
-                print("Early stopping")
-                break
+                print("Epoch: {0}, eval cost time: {1:.2f}, Steps: {2} | Train Loss: {3:.7f} Vali RMES: {4:.2f} Test RMSE: {5:.2f}".format(
+                    epoch + 1, time.time()-curr_epoch_time, train_steps, train_loss, vali_rmse, test_rmse))
+                early_stopping(vali_rmse, self.model, path)
+                if early_stopping.early_stop:
+                    print("Early stopping")
+                    break
+            else:
+                print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f}".format(
+                    epoch + 1, train_steps, train_loss))
 
             scheduler.step(train_loss)
 
