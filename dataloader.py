@@ -200,7 +200,7 @@ class Dataset_Custom(Dataset):
             r_end = r_begin + self.label_len + self.pred_len
         elif (self.set_type == 1) or (self.set_type == 2):
             # further skip some samples
-            s_begin = self.valid_indices[::self.data_shrink][index]
+            s_begin = 5*12 + index * self.L_d
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -222,7 +222,7 @@ class Dataset_Custom(Dataset):
         if self.set_type == 0:
             return len(self.valid_indices)
         elif (self.set_type == 1) or (self.set_type == 2):
-            return len(self.valid_indices[::self.data_shrink])
+            return self.curr_num_days
         else: # self.set_type == 3: # pred
             return int(len(self.data_x) / (self.seq_len + self.pred_len))
 
@@ -237,7 +237,7 @@ def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if (flag == 'pred'):
+    if (flag != 'train'):
         shuffle_flag = False
         drop_last = True
         

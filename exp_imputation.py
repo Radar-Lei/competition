@@ -250,7 +250,7 @@ class Exp_Imputation(Exp_Basic):
             curr_epoch_time = time.time()
             print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % 1 == 0:
                 # epoch 
                 vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, epoch+1, setting)
                 test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, epoch+1)
