@@ -64,7 +64,7 @@ parser.add_argument('--diff_schedule', type=str, default='quad', help='schedule 
 parser.add_argument('--diff_steps', type=int, default=50, help='num of diffusion steps')
 parser.add_argument('--diff_samples', type=int, default=16, help='num of diffusion samples')
 parser.add_argument('--beta_start', type=float, default=0.0001, help='start beta for diffusion')
-parser.add_argument('--beta_end', type=float, default=0.02, help='end beta for diffusion')
+parser.add_argument('--beta_end', type=float, default=0.01, help='end beta for diffusion')
 parser.add_argument('--sampling_shrink_interval', type=int, default=4, help='shrink interval for sampling')
 
 
@@ -73,7 +73,7 @@ parser.add_argument('--des', type=str, default='Exp', help='exp description')
 parser.add_argument('--itr', type=int, default=1, help='experiments times') # num of experiments
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
 parser.add_argument('--patience', type=int, default=30, help='early stopping patience')
-parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
+parser.add_argument('--learning_rate', type=float, default=0.001, help='optimizer learning rate')
 parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 parser.add_argument('--train_epochs', type=int, default=500, help='train epochs')
 
