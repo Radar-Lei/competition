@@ -1,3 +1,4 @@
+# for flow imputation, --d_model 512 d_ff might be a too large model
 python -u main.py \
     --task_name imputation \
     --is_training 0 \
@@ -25,8 +26,6 @@ python -u main.py \
     --embed timeF \
     --dropout 0.1 \
     \
-    --lradj type3 \
-    --lradj_factor 20 \
     --batch_size 32\
     --patience 30 \
     --learning_rate 0.0001\

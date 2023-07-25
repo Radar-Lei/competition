@@ -22,6 +22,7 @@ parser.add_argument('--task_name', type=str, default='long_term_forecast',
 parser.add_argument('--is_training', type=int, default=0, help='status, options:[0:training, 1:testing, 2:pred]')
 parser.add_argument('--model', type=str, default='TimesNet',
                         help='model name, options: [Autoformer, Transformer, TimesNet]')
+parser.add_argument('--trained_model', type=str, default='', help='trained model path')
 
 # data loader
 parser.add_argument('--root_path', type=str, default='./dataset/competition/train-5min', help='root path of the data file') # competition
@@ -105,6 +106,9 @@ if args.is_training == 0:
             args.des,
             ii)
         
+        if args.trained_model != '':
+            setting = args.trained_model
+            
         exp = Exp(args)
         print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
         exp.train(setting)
