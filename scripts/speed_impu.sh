@@ -1,3 +1,5 @@
+# --d_model 512 --d_ff 512 is actually a good setting for speed imputation 
+
 python -u main.py \
     --task_name imputation \
     --is_training 0 \
