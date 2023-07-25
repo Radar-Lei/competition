@@ -3,6 +3,7 @@ python -u main.py \
     --task_name imputation \
     --is_training 0 \
     --model TimesNet\
+    --trained_model ''\
     \
     --root_path ./dataset/competition/train-5min/ \
     --flow_data_path flow-5min.csv \

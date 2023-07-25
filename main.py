@@ -32,7 +32,7 @@ parser.add_argument('--speed_data_path', type=str, default='speed-5min.csv', hel
 parser.add_argument('--dataloader_type', type=str, default='flow', help='options:[agg:aggregation, flow_agg, speed_agg, flow, speed, multi: multidata but not agg]') # speed.csv
 parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 parser.add_argument('--freq', type=str, default='t',
-                    help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
+                    help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly]')
 parser.add_argument('--data_shrink', type=int, default=3, help='reduce the numbder of samples')
 
 # forecasting task
@@ -43,7 +43,6 @@ parser.add_argument('--pred_len', type=int, default=12, help='prediction sequenc
 # model define
 parser.add_argument('--e_layers', type=int, default=2, help='num of encoder layers')
 parser.add_argument('--d_layers', type=int, default=1, help='num of decoder layers')
-parser.add_argument('--factor', type=int, default=3, help='attn factor') # what is this?
 parser.add_argument('--enc_in', type=int, default=40, help='encoder input size') # dim of feature/ num of nodes
 parser.add_argument('--dec_in', type=int, default=40, help='decoder input size')
 parser.add_argument('--c_out', type=int, default=40, help='output size')
@@ -54,7 +53,6 @@ parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') 
 parser.add_argument('--embed', type=str, default='timeF',
                     help='time features encoding, options:[timeF, fixed, learned]')
 parser.add_argument('--dropout', type=float, default=0.1, help='dropout')
-parser.add_argument('--output_attention', action='store_true',default=False, help='whether to output attention in ecoder')
 
 
 # optimization
@@ -120,7 +118,10 @@ if args.is_training == 0:
 elif args.is_training == 2:
     # pred
     ii = 0
-    setting = '20230713_033341_long_term_forecast_flow_dm256_df256_el2_topk5_nk6_fq_h_Exp_3'
+    if args.trained_model != '':
+        setting = args.trained_model
+    else:
+        setting = '20230713_033341_long_term_forecast_flow_dm256_df256_el2_topk5_nk6_fq_h_Exp_3'
 
     exp = Exp(args)  # set experiments
     print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
