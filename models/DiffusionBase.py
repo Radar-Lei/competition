@@ -155,8 +155,8 @@ class Model(nn.Module):
                 # embedding # enc_out is of shape (B, L_hist, 2*d_model)
                 enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu))
 
-                for i in range(self.layer):
-                    enc_out = self.layer_norm(self.model[i](enc_out))
+                for j in range(self.layer):
+                    enc_out = self.layer_norm(self.model[j](enc_out))
 
                 # dec_out is of shape (B, L_pred, K)
                 dec_out = self.projection(enc_out)
@@ -172,7 +172,7 @@ class Model(nn.Module):
 
                 s -= self.configs.sampling_shrink_interval
 
-            imputed_samples[:, i, :, :] = sample.detach()
+            imputed_samples[:, i] = sample.detach()
 
         return imputed_samples
     
@@ -192,8 +192,8 @@ class Model(nn.Module):
                 # embedding # enc_out is of shape (B, L_hist, 2*d_model)
                 enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu))
 
-                for i in range(self.layer):
-                    enc_out = self.layer_norm(self.model[i](enc_out))
+                for j in range(self.layer):
+                    enc_out = self.layer_norm(self.model[j](enc_out))
 
                 # dec_out is of shape (B, L_pred, K)
                 dec_out = self.projection(enc_out)
@@ -212,6 +212,6 @@ class Model(nn.Module):
                     sample += sigma * noise
             
             # use detech to create new tensor on the device, reserve sample for next iteration
-            imputed_samples[:, i, :, :] = sample.detach()
+            imputed_samples[:, i] = sample.detach()
 
         return imputed_samples

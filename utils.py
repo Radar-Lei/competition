@@ -224,3 +224,60 @@ def time_features(dates, freq='h'):
     for feat in time_features_from_frequency_str(freq):
         fea_ls.append(feat(dates))
     return np.vstack(fea_ls)
+
+
+def plot_subplots(
+        nrows, 
+        ncols, 
+        num_subplots, 
+        L, 
+        dataind, 
+        quantiles_imp, 
+        all_target_np, 
+        all_evalpoint_np, 
+        all_given_np, 
+        path, 
+        epoch
+        ):
+    """
+    plot daily subplots by concatenating subseqs into daily seqs
+    """
+    plt.rcParams["font.size"] = 20
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols,figsize=(24.0, 3.5*nrows))
+    # fig.delaxes(axes[-1][-1])
+
+    for k in range(num_subplots):
+        # all_target_np is of shape (B, L, K)
+        df = pd.DataFrame({"x":np.arange(0,L), "val":all_target_np[dataind,:,k], "y":all_evalpoint_np[dataind,:,k]})
+        df = df[df.y != 0]
+        df2 = pd.DataFrame({"x":np.arange(0,L), "val":all_target_np[dataind,:,k], "y":all_given_np[dataind,:,k]})
+        df2 = df2[df2.y != 0]
+        row = k // ncols
+        col = k % ncols
+        axes[row][col].plot(range(0,L), quantiles_imp[2][dataind,:,k], color = 'g',linestyle='solid',label='Diff')
+        axes[row][col].fill_between(range(0,L), quantiles_imp[0][dataind,:,k],quantiles_imp[4][dataind,:,k],
+                        color='g', alpha=0.3)
+        axes[row][col].plot(df.x,df.val, color = 'b',marker = 'o', linestyle='None', markersize=2)
+        axes[row][col].plot(df2.x,df2.val, color = 'r',marker = 'x', linestyle='None')
+
+        # Get the minimum y-value from the data
+        min_y = min(np.min(df.val), np.min(quantiles_imp[0][dataind,:,k]))
+        max_y = max(np.max(df.val), np.max(quantiles_imp[4][dataind,:,k]))
+        if min_y > 0:
+            bottom = min_y - min_y*0.1
+        else:
+            bottom = min_y + min_y*0.1
+            
+        axes[row][col].set_ylim(bottom= bottom)  # Set the y-axis lower limit
+        axes[row][col].set_ylim(top= max_y + max_y*0.1)  # Set the y-axis upper limit
+
+        # axes[row][col].lengend()
+
+        if col == 0:
+            plt.setp(axes[row, 0], ylabel='Traffic Flow)')
+        if row == nrows-1:
+            plt.setp(axes[-1, col], xlabel='Time')
+
+    plt.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95, hspace=0.3, wspace=0.2)
+    plt.savefig(f"{path}epoch({epoch}).png",dpi=200)
+    plt.close()

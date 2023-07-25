@@ -1,3 +1,6 @@
+# beta_start and beta_end and diff_steps are very important for the performance of generation
+# if you found the values from the decoder is exploding, you may need to reduce beta_start and beta_end, or reduce diff_steps, 
+# to eventually reduce the variance of the sampling distribution (diffusion rate)
 python -u main.py \
     --task_name imputation \
     --is_training 0 \
@@ -27,9 +30,9 @@ python -u main.py \
     \
     --diff_schedule quad \
     --diff_steps 100 \
-    --diff_samples 100 \
+    --diff_samples 32 \
     --beta_start 0.0001 \
-    --bata_end 0.2 \
+    --bata_end 0.02 \
     --sampling_shrink_interval 4 \
     \
     --batch_size 32\
@@ -73,7 +76,7 @@ python -u main.py \
     --bata_end 0.2 \
     --sampling_shrink_interval 4 \
     \
-    --batch_size 32\
+    --batch_size 16\
     --patience 10 \
     --learning_rate 0.0001\
     \

@@ -99,8 +99,8 @@ class Dataset_Custom(Dataset):
         else:
             df_data = df_data.values
         
-        num_days_train = int(self.num_day * 0.95)
-        num_days_test = int(self.num_day * 0.02)
+        num_days_train = int(self.num_day * 0.9)
+        num_days_test = int(self.num_day * 0.05)
         num_days_vali = self.num_day - num_days_train - num_days_test
 
         df_data = pd.DataFrame(df_data,index=pd.DatetimeIndex(df_raw['date'].values))
@@ -237,7 +237,7 @@ def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if (flag == 'pred') or (flag == 'test'):
+    if (flag == 'pred'):
         shuffle_flag = False
         drop_last = True
         

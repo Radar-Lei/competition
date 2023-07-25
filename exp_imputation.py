@@ -5,7 +5,7 @@ import torch.nn as nn
 from dataloader import data_provider
 from torch import optim
 import numpy as np
-from utils import metric, visual, EarlyStopping
+from utils import metric, visual, EarlyStopping, plot_subplots
 import time
 import pandas as pd
 
@@ -53,12 +53,22 @@ class Exp_Imputation(Exp_Basic):
             CRPS += q_loss / denom
         return CRPS / len(quantiles)
 
-    def vali(self, vali_data, vali_loader, criterion):
-        total_loss = []
+    def _get_quantile(self, samples, q, axis=1):
+        return np.quantile(samples,q,axis=axis)
+
+    def _quantile(self, samples, all_target_np, all_given_np):    
+        qlist =[0.05,0.25,0.5,0.75,0.95]
+        quantiles_imp= []
+        for q in qlist:
+            quantiles_imp.append(self._get_quantile(samples, q, axis=1)*(1-all_given_np) + all_target_np * all_given_np)
+        return quantiles_imp
+    
+    def vali(self, vali_data, vali_loader, epoch, setting=None):
         all_outputs = []
         all_targets = []
         all_medians = []
         all_masks = []
+        all_obs_masks = []
 
         self.model.eval()
 
@@ -87,6 +97,7 @@ class Exp_Imputation(Exp_Basic):
                 mask = actual_mask * mask
 
                 target_mask = actual_mask - mask
+                obs_mask = actual_mask - target_mask
 
                 # outputs is of shape (B, n_samples, L_hist, K)
                 outputs = self.model.evaluate(batch_x, batch_x_mark, None, None, mask)
@@ -111,16 +122,56 @@ class Exp_Imputation(Exp_Basic):
                 all_outputs.append(outputs)
                 all_medians.append(samples_median)
                 all_targets.append(c_target)
-                all_masks.append(target_mask.detach().cpu())
+                all_masks.append(target_mask.detach().cpu().numpy())
+                all_obs_masks.append(obs_mask.detach().cpu().numpy())
+        if i > 0:
+            all_medians = np.concatenate(all_medians, 0) # (B*N_B, L_hist, K)
+            all_targets = np.concatenate(all_targets, 0) # (B*N_B, L_hist, K)
+            all_masks = np.concatenate(all_masks, 0) # (B*N_B, L_hist, K)
+            all_outputs = np.concatenate(all_outputs, 0) # (B*N_B, n_samples, L_hist, K)
+            all_obs_masks = np.concatenate(all_obs_masks, 0) # (B*N_B, L_hist, K)
+        else:
+            all_medians = all_medians[0]
+            all_targets = all_targets[0]
+            all_masks = all_masks[0]
+            all_outputs = all_outputs[0]
+            all_obs_masks = all_obs_masks[0]
+        _, _, rmse, mape, _ = metric(all_medians[all_masks == 1], all_targets[all_masks == 1])
+        CRPS = self._calc_quantile_CRPS(all_targets, all_outputs, all_masks)
+
+        if setting is None:
+            # if setting is None, do not visualize, return directly
+            self.model.train()
+            return rmse, mape, CRPS
         
-        eval_medians = np.concatenate(all_medians, 0) # (B*N_B, L_hist, K)
-        eval_targets = np.concatenate(all_targets, 0) # (B*N_B, L_hist, K)
-        eval_masks = np.concatenate(all_masks, 0) # (B*N_B, L_hist, K)
-        _, _, rmse, mape, _ = metric(eval_medians[eval_masks == 0], eval_targets[eval_masks == 0])
+        # starting visualization
+        quantiles_imp = self._quantile(all_outputs, all_targets, all_obs_masks)
+        # by default, num_subplots = K, but we can change it to plot less subplots
+        num_subplots = min(K, 60)
+
+        dataind = 0
+
+        ncols = 3
+        nrows = (num_subplots + ncols - 1) // ncols
+
+        folder_path = './vali_results/' + setting + '/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
         
+        plot_subplots(nrows, 
+                    ncols, 
+                    num_subplots, 
+                    L, dataind, 
+                    quantiles_imp, 
+                    all_targets, 
+                    all_masks, 
+                    all_obs_masks, 
+                    folder_path, 
+                    epoch
+                    )
 
         self.model.train()
-        return rmse, mape
+        return rmse, mape, CRPS
 
     def train(self, setting):
         train_data, train_loader = self._get_data(flag='train')
@@ -129,6 +180,7 @@ class Exp_Imputation(Exp_Basic):
 
         _, K = train_data[0][0].shape
         mask = self.create_fixed_mask(K)
+        # 1 for valid values, 0 for missing values
         mask = torch.from_numpy(np.repeat(mask[np.newaxis, :, :], train_loader.batch_size, axis=0)).to(self.device)
 
         path = os.path.join(self.args.checkpoints, setting)
@@ -142,10 +194,6 @@ class Exp_Imputation(Exp_Basic):
 
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
-
-        folder_path = './train_results/' + setting + '/'
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
 
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             model_optim, 
@@ -173,7 +221,7 @@ class Exp_Imputation(Exp_Basic):
                 # mask[mask <= self.args.mask_rate] = 0  # masked
                 # mask[mask > self.args.mask_rate] = 1  # remained
 
-                # mask for the NaN values in the original data
+                # mask for the NaN values in the original data, 1 for valid values
                 actual_mask = torch.ne(batch_x, 0).float()
                 mask = actual_mask * mask
 
@@ -203,8 +251,9 @@ class Exp_Imputation(Exp_Basic):
             print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
             if (epoch + 1) % 5 == 0:
-                vali_rmse, _ = self.vali(vali_data, vali_loader, criterion)
-                test_rmse, _ = self.vali(test_data, test_loader, criterion)
+                # epoch 
+                vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, epoch+1, setting)
+                test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, epoch+1)
 
                 print("Epoch: {0}, eval cost time: {1:.2f}, Steps: {2} | Train Loss: {3:.7f} Vali RMES: {4:.2f} Test RMSE: {5:.2f}".format(
                     epoch + 1, time.time()-curr_epoch_time, train_steps, train_loss, vali_rmse, test_rmse))

@@ -1,5 +1,3 @@
-# this version we aggregate data
-
 import argparse
 import torch
 import random
@@ -7,6 +5,12 @@ import numpy as np
 from exp_imputation import Exp_Imputation
 from exp_prediction import Exp_Prediction
 import datetime
+
+"""
+beta_start and beta_end and diff_steps are very important for the performance of generation
+if you found the values from the decoder is exploding, you may need to reduce beta_start and beta_end, or reduce diff_steps, 
+to eventually reduce the variance of the sampling distribution (diffusion rate)
+"""
 
 # random seed will control all random operations in all .py it calls
 fix_seed = 20
@@ -46,8 +50,8 @@ parser.add_argument('--factor', type=int, default=3, help='attn factor') # what 
 parser.add_argument('--enc_in', type=int, default=40, help='encoder input size') # dim of feature/ num of nodes
 parser.add_argument('--dec_in', type=int, default=40, help='decoder input size')
 parser.add_argument('--c_out', type=int, default=40, help='output size')
-parser.add_argument('--d_model', type=int, default=128, help='dimension of model') # 512
-parser.add_argument('--d_ff', type=int, default=256, help='dimension of fcn') # FC network, 2048
+parser.add_argument('--d_model', type=int, default=32, help='dimension of model') # 512
+parser.add_argument('--d_ff', type=int, default=64, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') # 6
 parser.add_argument('--embed', type=str, default='timeF',
@@ -57,10 +61,10 @@ parser.add_argument('--output_attention', action='store_true',default=False, hel
 
 # diffusion
 parser.add_argument('--diff_schedule', type=str, default='quad', help='schedule for diffusion, options:[quad, linear]')
-parser.add_argument('--diff_steps', type=int, default=100, help='num of diffusion steps')
-parser.add_argument('--diff_samples', type=int, default=8, help='num of diffusion samples')
+parser.add_argument('--diff_steps', type=int, default=50, help='num of diffusion steps')
+parser.add_argument('--diff_samples', type=int, default=16, help='num of diffusion samples')
 parser.add_argument('--beta_start', type=float, default=0.0001, help='start beta for diffusion')
-parser.add_argument('--beta_end', type=float, default=0.2, help='end beta for diffusion')
+parser.add_argument('--beta_end', type=float, default=0.02, help='end beta for diffusion')
 parser.add_argument('--sampling_shrink_interval', type=int, default=4, help='shrink interval for sampling')
 
 
@@ -68,7 +72,7 @@ parser.add_argument('--sampling_shrink_interval', type=int, default=4, help='shr
 parser.add_argument('--des', type=str, default='Exp', help='exp description')
 parser.add_argument('--itr', type=int, default=1, help='experiments times') # num of experiments
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
-parser.add_argument('--patience', type=int, default=40, help='early stopping patience')
+parser.add_argument('--patience', type=int, default=30, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
 parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 parser.add_argument('--train_epochs', type=int, default=500, help='train epochs')
