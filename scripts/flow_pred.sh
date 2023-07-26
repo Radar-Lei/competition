@@ -2,6 +2,7 @@ python -u main.py \
     --task_name long_term_forecast \
     --is_training 0 \
     --model TimesNet\
+    --trained_model ''\
     \
     --root_path ./dataset/competition/train-5min/ \
     --flow_data_path flow-5min.csv \
@@ -18,17 +19,15 @@ python -u main.py \
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 256 \
+    --d_model 512 \
     --d_ff 256 \
     --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
     --dropout 0.1 \
     \
-    --lradj type3 \
-    --lradj_factor 10 \
-    --batch_size 32\
-    --patience 30 \
+    --batch_size 16\
+    --patience 40 \
     --learning_rate 0.0001\
     \
     --gpu 0 \

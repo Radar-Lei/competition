@@ -41,7 +41,7 @@ class Exp_Imputation(Exp_Basic):
         mask = torch.from_numpy(np.repeat(mask[np.newaxis, :, :], vali_loader.batch_size, axis=0))
 
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
@@ -56,6 +56,9 @@ class Exp_Imputation(Exp_Basic):
                 # mask[mask <= self.args.mask_rate] = 0  # masked
                 # mask[mask > self.args.mask_rate] = 1  # remained
                 mask = mask.to(self.device)
+                actual_mask = actual_mask.to(self.device)
+                target_mask = actual_mask - mask
+
                 inp = batch_x.masked_fill(mask == 0, 0)
 
                 outputs = self.model(inp, batch_x_mark, None, None, mask)
@@ -64,9 +67,9 @@ class Exp_Imputation(Exp_Basic):
                 outputs = outputs[:, :, f_dim:]
                 pred = outputs.detach().cpu()
                 true = batch_x.detach().cpu()
-                mask = mask.detach().cpu()
+                target_mask = target_mask.detach().cpu()
 
-                loss = criterion(pred[mask == 0], true[mask == 0])
+                loss = criterion(pred[target_mask == 1], true[target_mask == 1])
                 total_loss.append(loss)
         total_loss = np.average(total_loss)
         self.model.train()
@@ -113,12 +116,15 @@ class Exp_Imputation(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
 
                 batch_x = batch_x.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
+
+                actual_mask = actual_mask.to(self.device)
+                target_mask = actual_mask - mask
 
                 # random mask
                 # B, T, N = batch_x.shape
@@ -131,7 +137,7 @@ class Exp_Imputation(Exp_Basic):
 
                 f_dim = 0
                 outputs = outputs[:, :, f_dim:]
-                loss = criterion(outputs[mask == 0], batch_x[mask == 0])
+                loss = criterion(outputs[target_mask == 1], batch_x[target_mask == 1])
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -156,8 +162,8 @@ class Exp_Imputation(Exp_Basic):
 
                 for j in range(true.shape[1]):
                     filled = true[:, j].copy()
-                    filled = filled * mask[0, :, j].detach().cpu().numpy() + \
-                                pred[:, j] * (1 - mask[0, :, j].detach().cpu().numpy())
+                    filled = filled * actual_mask[0, :, j].detach().cpu().numpy() + \
+                                pred[:, j] * (1 - actual_mask[0, :, j].detach().cpu().numpy())
                     visual(true[:, j], filled, os.path.join(folder_path, str(epoch) + '_' + str(j) + '.png'))
 
             train_end_time = time.time()
@@ -198,7 +204,7 @@ class Exp_Imputation(Exp_Basic):
 
         preds = []
         trues = []
-        masks = []
+        target_masks = []
         folder_path = './test_results/' + setting + '/'
 
         if not os.path.exists(folder_path):
@@ -206,7 +212,7 @@ class Exp_Imputation(Exp_Basic):
 
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask) in enumerate(test_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
@@ -216,6 +222,14 @@ class Exp_Imputation(Exp_Basic):
                 # mask[mask <= self.args.mask_rate] = 0  # masked
                 # mask[mask > self.args.mask_rate] = 1  # remained
                 mask = mask.to(self.device)
+                if actual_mask is not None:
+                    actual_mask = actual_mask.to(self.device)
+                    target_mask = actual_mask - mask
+                    actual_mask = mask
+                else:
+                    target_mask = 1 - mask
+                    actual_mask = mask
+
                 inp = batch_x.masked_fill(mask == 0, 0)
 
                 # imputation
@@ -233,17 +247,17 @@ class Exp_Imputation(Exp_Basic):
 
                 preds.append(pred)
                 trues.append(true)
-                masks.append(mask.detach().cpu())
+                target_masks.append(target_mask.detach().cpu())
 
                 if i % 20 == 0:
                     filled = true[0, :, -1].copy()
-                    filled = filled * mask[0, :, -1].detach().cpu().numpy() + \
-                                pred[0, :, -1] * (1 - mask[0, :, -1].detach().cpu().numpy())
+                    filled = filled * actual_mask[0, :, -1].detach().cpu().numpy() + \
+                                pred[0, :, -1] * (1 - actual_mask[0, :, -1].detach().cpu().numpy())
                     visual(true[0, :, -1], filled, os.path.join(folder_path, str(i) + '.png'))
 
         preds = np.concatenate(preds, 0)
         trues = np.concatenate(trues, 0)
-        masks = np.concatenate(masks, 0)
+        target_masks = np.concatenate(target_masks, 0)
         print('test shape:', preds.shape, trues.shape)
 
         # result save
@@ -251,7 +265,7 @@ class Exp_Imputation(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        mae, mse, rmse, mape, mspe = metric(preds[masks == 0], trues[masks == 0])
+        mae, mse, rmse, mape, mspe = metric(preds[target_masks == 1], trues[target_masks == 1])
         print('rmse:{:.2f}, mae:{:.2f}, mape:{:.2f}%'.format(rmse, mae, mape*100))
         f = open("result_imputation.txt", 'a')
         f.write(setting + "  \n")

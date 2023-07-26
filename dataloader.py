@@ -65,9 +65,9 @@ class Dataset_Custom(Dataset):
         else: # self.loader_type == 'speed':
             df_raw = df_speed_raw
         
-        df_raw[df_raw == 0] = np.nan
-        df_raw.fillna(method='ffill', inplace=True)
-        df_raw.fillna(method='bfill', inplace=True)
+        # df_raw[df_raw == 0] = np.nan
+        # df_raw.fillna(method='ffill', inplace=True)
+        # df_raw.fillna(method='bfill', inplace=True)
         '''
         df_raw.columns: ['date', ...(other features), target feature]
         '''
@@ -99,7 +99,7 @@ class Dataset_Custom(Dataset):
         else:
             df_data = df_data.values
         
-        num_days_train = int(self.num_day * 0.85)
+        num_days_train = int(self.num_day * 0.9)
         num_days_test = int(self.num_day * 0.05)
         num_days_vali = self.num_day - num_days_train - num_days_test
 
@@ -134,6 +134,10 @@ class Dataset_Custom(Dataset):
             df_train = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(train_dates)]
             df_vali = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(vali_dates)]
             df_test = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(test_dates)]
+
+            train_mask = np.where(df_train==0, 0, 1)
+            vali_mask = np.where(df_vali==0, 0, 1)
+            test_mask = np.where(df_test==0, 0, 1)
 
         if self.scale:
             if self.set_type != 3:
@@ -172,14 +176,17 @@ class Dataset_Custom(Dataset):
         if self.set_type == 0:
             self.data_x = train_data
             self.data_y = train_data
+            self.mask = train_mask
             self.curr_num_days = len(train_dates)
         elif self.set_type == 1:
             self.data_x = vali_data
             self.data_y = vali_data
+            self.mask = vali_mask
             self.curr_num_days = len(vali_dates)
         elif self.set_type == 2:
             self.data_x = test_data
             self.data_y = test_data
+            self.mask = test_mask
             self.curr_num_days = len(test_dates)
         else:
             self.data_x = pred_data
@@ -213,7 +220,10 @@ class Dataset_Custom(Dataset):
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
-        return seq_x, seq_y, seq_x_mark, seq_y_mark
+        if self.set_type != 3:
+            return seq_x, seq_y, seq_x_mark, seq_y_mark, self.mask[s_begin:s_end]
+        else:
+            return seq_x, seq_y, seq_x_mark, seq_y_mark, None
 
     def __len__(self):
         if self.set_type != 3:
