@@ -163,7 +163,7 @@ class Exp_Imputation(Exp_Basic):
                 for j in range(true.shape[1]):
                     filled = true[:, j].copy()
                     filled = filled * actual_mask[0, :, j].detach().cpu().numpy() + \
-                                pred[:, j] * (1 - actual_mask[0, :, j].detach().cpu().numpy())
+                                pred[:, j] * (1 - mask[0, :, j].detach().cpu().numpy())
                     visual(true[:, j], filled, os.path.join(folder_path, str(epoch) + '_' + str(j) + '.png'))
 
             train_end_time = time.time()
@@ -252,7 +252,7 @@ class Exp_Imputation(Exp_Basic):
                 if i % 20 == 0:
                     filled = true[0, :, -1].copy()
                     filled = filled * actual_mask[0, :, -1].detach().cpu().numpy() + \
-                                pred[0, :, -1] * (1 - actual_mask[0, :, -1].detach().cpu().numpy())
+                                pred[0, :, -1] * (1 - mask[0, :, -1].detach().cpu().numpy())
                     visual(true[0, :, -1], filled, os.path.join(folder_path, str(i) + '.png'))
 
         preds = np.concatenate(preds, 0)
