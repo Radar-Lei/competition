@@ -125,6 +125,7 @@ class Exp_Imputation(Exp_Basic):
 
                 actual_mask = actual_mask.to(self.device)
                 target_mask = actual_mask - mask
+                target_mask[target_mask <0] = 0
 
                 # random mask
                 # B, T, N = batch_x.shape
@@ -162,8 +163,8 @@ class Exp_Imputation(Exp_Basic):
 
                 for j in range(true.shape[1]):
                     filled = true[:, j].copy()
-                    filled = filled * actual_mask[0, :, j].detach().cpu().numpy() + \
-                                pred[:, j] * (1 - mask[0, :, j].detach().cpu().numpy())
+                    filled = filled * (actual_mask-target_mask)[0, :, j].detach().cpu().numpy() + \
+                                pred[:, j] * target_mask[0, :, j].detach().cpu().numpy()
                     visual(true[:, j], filled, os.path.join(folder_path, str(epoch) + '_' + str(j) + '.png'))
 
             train_end_time = time.time()
@@ -225,7 +226,7 @@ class Exp_Imputation(Exp_Basic):
                 if actual_mask is not None:
                     actual_mask = actual_mask.to(self.device)
                     target_mask = actual_mask - mask
-                    actual_mask = mask
+                    target_mask[target_mask <0] = 0
                 else:
                     target_mask = 1 - mask
                     actual_mask = mask
@@ -251,8 +252,8 @@ class Exp_Imputation(Exp_Basic):
 
                 if i % 20 == 0:
                     filled = true[0, :, -1].copy()
-                    filled = filled * actual_mask[0, :, -1].detach().cpu().numpy() + \
-                                pred[0, :, -1] * (1 - mask[0, :, -1].detach().cpu().numpy())
+                    filled = filled * (actual_mask-target_mask)[0, :, -1].detach().cpu().numpy() + \
+                                pred[0, :, -1] * target_mask[0, :, -1].detach().cpu().numpy()
                     visual(true[0, :, -1], filled, os.path.join(folder_path, str(i) + '.png'))
 
         preds = np.concatenate(preds, 0)
