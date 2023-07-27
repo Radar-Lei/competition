@@ -223,7 +223,7 @@ class Exp_Imputation(Exp_Basic):
                 # mask[mask <= self.args.mask_rate] = 0  # masked
                 # mask[mask > self.args.mask_rate] = 1  # remained
                 mask = mask.to(self.device)
-                if actual_mask is not None:
+                if actual_mask != 0:
                     actual_mask = actual_mask.to(self.device)
                     target_mask = actual_mask - mask
                     target_mask[target_mask <0] = 0

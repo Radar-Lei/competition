@@ -223,7 +223,7 @@ class Dataset_Custom(Dataset):
         if self.set_type != 3:
             return seq_x, seq_y, seq_x_mark, seq_y_mark, self.mask[s_begin:s_end]
         else:
-            return seq_x, seq_y, seq_x_mark, seq_y_mark, None
+            return seq_x, seq_y, seq_x_mark, seq_y_mark, 0
 
     def __len__(self):
         if self.set_type != 3:
