@@ -19,8 +19,8 @@ python -u main.py \
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 64 \
-    --d_ff 64 \
+    --d_model 512 \
+    --d_ff 512 \
     --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
@@ -28,6 +28,7 @@ python -u main.py \
     \
     --batch_size 32\
     --patience 40 \
-    --learning_rate 0.001\
+    --learning_rate 0.0001\
+    --use_amp 0\
     \
     --gpu 0 \
