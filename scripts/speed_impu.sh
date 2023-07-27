@@ -1,4 +1,5 @@
 # for flow imputation, --d_model 512 d_ff might be a too large model
+export NUMEXPR_MAX_THREADS=128
 python -u main.py \
     --task_name imputation \
     --is_training 0 \
