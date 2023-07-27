@@ -1,5 +1,5 @@
 python -u main.py \
-    --task_name long_term_forecast \
+    --task_name prediction \
     --is_training 0 \
     --model TimesNet\
     --trained_model ''\
@@ -19,15 +19,15 @@ python -u main.py \
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 512 \
-    --d_ff 256 \
+    --d_model 64 \
+    --d_ff 64 \
     --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
     --dropout 0.1 \
     \
-    --batch_size 16\
+    --batch_size 32\
     --patience 40 \
-    --learning_rate 0.0001\
+    --learning_rate 0.001\
     \
     --gpu 0 \

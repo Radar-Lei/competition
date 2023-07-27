@@ -37,7 +37,7 @@ class Exp_Prediction(Exp_Basic):
         total_loss = []
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, _, actual_mask) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float()
 
@@ -57,7 +57,7 @@ class Exp_Prediction(Exp_Basic):
                 pred = outputs.detach().cpu()
                 true = batch_y.detach().cpu()
 
-                loss = criterion(pred, true)
+                loss = criterion(pred[actual_mask==1], true[actual_mask==1])
 
                 total_loss.append(loss)
         total_loss = np.average(total_loss)
@@ -98,7 +98,8 @@ class Exp_Prediction(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
+            # here actual_mask is mask for y seq only, where 0 values in the data mask as 0, otherwise 1
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, _, actual_mask) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
 
@@ -116,7 +117,7 @@ class Exp_Prediction(Exp_Basic):
                 f_dim =  0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                loss = criterion(outputs, batch_y)
+                loss = criterion(outputs[actual_mask==1], batch_y[actual_mask==1])
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -135,14 +136,15 @@ class Exp_Prediction(Exp_Basic):
                 outputs = outputs.detach().cpu().numpy()
                 pred = outputs[0] # (L_pred, K)
                 true = batch_y.detach().cpu().numpy()[0] # (L_pred, K)
+                mask = actual_mask.detach().cpu().numpy()[0] # (L_pred, K)
 
                 pred = train_data.inverse_transform(pred)
                 true = train_data.inverse_transform(true)
                 hist = train_data.inverse_transform(batch_x.detach().cpu().numpy()[0])
 
                 for j in range(true.shape[1]):
-                    gt = np.concatenate((hist[:, j], true[:, j]), axis=0)
-                    pd = np.concatenate((hist[:, j], pred[:, j]), axis=0)
+                    gt = np.concatenate((hist[:, j], true[:, j]*mask[:,j]), axis=0)
+                    pd = np.concatenate((hist[:, j], pred[:, j]*mask[:,j]), axis=0)
                     visual(gt, pd, os.path.join(folder_path, str(epoch) + '_' + str(j) + '.png'))
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
@@ -178,6 +180,7 @@ class Exp_Prediction(Exp_Basic):
 
         preds = []
         trues = []
+        masks = []
 
         folder_path = './test_results/' + setting + '/'
         if not os.path.exists(folder_path):
@@ -185,7 +188,7 @@ class Exp_Prediction(Exp_Basic):
 
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, _, actual_mask) in enumerate(test_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
 
@@ -198,6 +201,9 @@ class Exp_Prediction(Exp_Basic):
 
                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
+                if type(actual_mask) is int:
+                    actual_mask = torch.ones_like(outputs)
+
                 # eval
                 f_dim = 0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
@@ -207,6 +213,7 @@ class Exp_Prediction(Exp_Basic):
 
                 pred = outputs
                 true = batch_y
+                mask = actual_mask.detach().cpu().numpy()[0] # (L_pred, K)
 
                 # batch_size of testing has to be 1
                 pred = test_data.inverse_transform(pred[0])
@@ -215,14 +222,16 @@ class Exp_Prediction(Exp_Basic):
 
                 preds.append(pred)
                 trues.append(true)
+                masks.append(mask)
 
                 if i % 20 == 0:
-                    gt = np.concatenate((hist[:, -1], true[:, -1]), axis=0)
-                    pd = np.concatenate((hist[:, -1], pred[:, -1]), axis=0)
+                    gt = np.concatenate((hist[:, -1], true[:, -1]*mask[:,-1]), axis=0)
+                    pd = np.concatenate((hist[:, -1], pred[:, -1]*mask[:,-1]), axis=0)
                     visual(gt, pd, os.path.join(folder_path, str(i) + '.png'))
 
         preds = np.array(preds)
         trues = np.array(trues)
+        masks = np.array(masks)
         print('test shape:', preds.shape, trues.shape)
         preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
@@ -233,7 +242,7 @@ class Exp_Prediction(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        mae, mse, rmse, mape, mspe = metric(preds, trues)
+        mae, mse, rmse, mape, mspe = metric(preds[masks==1], trues[masks==1])
         print('rmse:{:.2f}, mae:{:.2f}, mape:{:.2f}%'.format(rmse, mae, mape*100))
         f = open("result_prediction.txt", 'a')
         f.write(setting + "  \n")

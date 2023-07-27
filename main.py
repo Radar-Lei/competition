@@ -17,12 +17,12 @@ np.random.seed(fix_seed)
 parser = argparse.ArgumentParser(description='TimesNet')
 
 # basic config
-parser.add_argument('--task_name', type=str, default='imputation',
-                    help='task name, options:[long_term_forecast, imputation]')
-parser.add_argument('--is_training', type=int, default=2, help='status, options:[0:training, 1:testing, 2:pred]')
+parser.add_argument('--task_name', type=str, default='prediction',
+                    help='task name, options:[prediction, imputation]')
+parser.add_argument('--is_training', type=int, default=0, help='status, options:[0:training, 1:testing, 2:pred]')
 parser.add_argument('--model', type=str, default='TimesNet',
-                        help='model name, options: [Autoformer, Transformer, TimesNet]')
-parser.add_argument('--trained_model', type=str, default='20230724_182914_TimesNet_imputation_flow_dm512_df512_el2_topk5_nk6_fq_t_Exp', help='trained model path')
+                        help='model name, options: [TimesNet]')
+parser.add_argument('--trained_model', type=str, default='', help='trained model path')
 
 # data loader
 parser.add_argument('--root_path', type=str, default='./dataset/competition/train-5min', help='root path of the data file') # competition
@@ -38,7 +38,7 @@ parser.add_argument('--data_shrink', type=int, default=3, help='reduce the numbd
 # forecasting task
 parser.add_argument('--seq_len', type=int, default=156, help='input sequence length')
 parser.add_argument('--label_len', type=int, default=0, help='start token length')
-parser.add_argument('--pred_len', type=int, default=0, help='prediction sequence length')
+parser.add_argument('--pred_len', type=int, default=12, help='prediction sequence length')
 
 # model define
 parser.add_argument('--e_layers', type=int, default=2, help='num of encoder layers')
@@ -46,8 +46,8 @@ parser.add_argument('--d_layers', type=int, default=1, help='num of decoder laye
 parser.add_argument('--enc_in', type=int, default=40, help='encoder input size') # dim of feature/ num of nodes
 parser.add_argument('--dec_in', type=int, default=40, help='decoder input size')
 parser.add_argument('--c_out', type=int, default=40, help='output size')
-parser.add_argument('--d_model', type=int, default=512, help='dimension of model') # 512
-parser.add_argument('--d_ff', type=int, default=512, help='dimension of fcn') # FC network, 2048
+parser.add_argument('--d_model', type=int, default=64, help='dimension of model') # 512
+parser.add_argument('--d_ff', type=int, default=64, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') # 6
 parser.add_argument('--embed', type=str, default='timeF',
@@ -78,7 +78,7 @@ if args.use_gpu and args.use_multi_gpu:
     args.device_ids = [int(id_) for id_ in device_ids]
     args.gpu = args.device_ids[0]
 
-if args.task_name == 'long_term_forecast':
+if args.task_name == 'prediction':
     Exp = Exp_Prediction
 elif args.task_name == 'imputation':
     Exp = Exp_Imputation

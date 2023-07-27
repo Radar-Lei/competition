@@ -100,7 +100,7 @@ class Dataset_Custom(Dataset):
             df_data = df_data.values
         
         num_days_train = int(self.num_day * 0.9)
-        num_days_test = int(self.num_day * 0.05)
+        num_days_test = int(self.num_day * 0.02)
         num_days_vali = self.num_day - num_days_train - num_days_test
 
         df_data = pd.DataFrame(df_data,index=pd.DatetimeIndex(df_raw['date'].values))
@@ -221,9 +221,9 @@ class Dataset_Custom(Dataset):
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
         if self.set_type != 3:
-            return seq_x, seq_y, seq_x_mark, seq_y_mark, self.mask[s_begin:s_end]
+            return seq_x, seq_y, seq_x_mark, seq_y_mark, self.mask[s_begin:s_end], self.mask[r_begin:r_end]
         else:
-            return seq_x, seq_y, seq_x_mark, seq_y_mark, 0
+            return seq_x, seq_y, seq_x_mark, seq_y_mark, 0, 0
 
     def __len__(self):
         if self.set_type != 3:

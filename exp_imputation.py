@@ -41,7 +41,7 @@ class Exp_Imputation(Exp_Basic):
         mask = torch.from_numpy(np.repeat(mask[np.newaxis, :, :], vali_loader.batch_size, axis=0))
 
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask) in enumerate(vali_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask, _) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
@@ -116,7 +116,8 @@ class Exp_Imputation(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask) in enumerate(train_loader):
+            # here actual_mask is for the entire sequence, where 0 in the original data masked as 0, otherwise 1
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask, _) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
 
@@ -213,7 +214,7 @@ class Exp_Imputation(Exp_Basic):
 
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask) in enumerate(test_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask, _) in enumerate(test_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
@@ -223,18 +224,18 @@ class Exp_Imputation(Exp_Basic):
                 # mask[mask <= self.args.mask_rate] = 0  # masked
                 # mask[mask > self.args.mask_rate] = 1  # remained
                 mask = mask.to(self.device)
-                if actual_mask != 0:
+                if type(actual_mask) is not int:
                     actual_mask = actual_mask.to(self.device)
                     target_mask = actual_mask - mask
                     target_mask[target_mask <0] = 0
                 else:
                     target_mask = 1 - mask
-                    actual_mask = mask
+                    actual_mask = 1
 
                 inp = batch_x.masked_fill(mask == 0, 0)
 
                 # imputation
-                outputs = self.model(inp, batch_x_mark, None, None, mask)
+                outputs = self.model(inp, batch_x_mark, None, None, mask, _)
 
                 # eval
                 f_dim = 0
