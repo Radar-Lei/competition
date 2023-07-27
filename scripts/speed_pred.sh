@@ -1,7 +1,9 @@
+# for flow imputation, --d_model 512 d_ff might be a too large model
 python -u main.py \
-    --task_name long_term_forecast \
+    --task_name prediction \
     --is_training 0 \
     --model TimesNet\
+    --trained_model ''\
     \
     --root_path ./dataset/competition/train-5min/ \
     --flow_data_path flow-5min.csv \
@@ -10,9 +12,9 @@ python -u main.py \
     --freq t \
     --data_shrink 3 \
     \
-    --seq_len 36 \
+    --seq_len 156 \
     --label_len 0 \
-    --pred_len 12 \
+    --pred_len 0 \
     \
     --e_layers 2\
     --enc_in 40\
@@ -20,13 +22,11 @@ python -u main.py \
     --c_out 40\
     --d_model 128 \
     --d_ff 128 \
-    --top_k 5 \
+    --top_k 12 \
     --num_kernels 6 \
     --embed timeF \
     --dropout 0.1 \
     \
-    --lradj type3 \
-    --lradj_factor 10 \
     --batch_size 32\
     --patience 30 \
     --learning_rate 0.001\

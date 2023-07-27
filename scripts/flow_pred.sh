@@ -19,16 +19,16 @@ python -u main.py \
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 512 \
-    --d_ff 512 \
-    --top_k 5 \
+    --d_model 64 \
+    --d_ff 64 \
+    --top_k 12 \
     --num_kernels 6 \
     --embed timeF \
     --dropout 0.1 \
     \
     --batch_size 32\
     --patience 40 \
-    --learning_rate 0.0001\
+    --learning_rate 0.001\
     --use_amp 0\
     \
     --gpu 0 \

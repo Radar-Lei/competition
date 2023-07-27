@@ -20,14 +20,14 @@ python -u main.py \
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 64 \
-    --d_ff 64 \
-    --top_k 3 \
+    --d_model 128 \
+    --d_ff 128 \
+    --top_k 12 \
     --num_kernels 6 \
     --embed timeF \
     --dropout 0.1 \
     \
-    --batch_size 16\
+    --batch_size 32\
     --patience 30 \
     --learning_rate 0.001\
     \

@@ -61,7 +61,7 @@ parser.add_argument('--itr', type=int, default=1, help='experiments times') # nu
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
 parser.add_argument('--patience', type=int, default=40, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
-parser.add_argument('--train_epochs', type=int, default=500, help='train epochs')
+parser.add_argument('--train_epochs', type=int, default=1000, help='train epochs')
 # FFT only support tensor (L,K), L must be the power of 2, here 36+12=48 is not the power of 2
 parser.add_argument('--use_amp', type=int, help='use automatic mixed precision training', default=0)
 

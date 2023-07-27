@@ -1,9 +1,9 @@
-# --d_model 512 --d_ff 512 is actually a good setting for speed imputation 
-
+# for flow imputation, --d_model 512 d_ff might be a too large model
 python -u main.py \
     --task_name imputation \
     --is_training 0 \
     --model TimesNet\
+    --trained_model ''\
     \
     --root_path ./dataset/competition/train-5min/ \
     --flow_data_path flow-5min.csv \
@@ -20,17 +20,15 @@ python -u main.py \
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 512 \
-    --d_ff 512 \
-    --top_k 5 \
+    --d_model 128 \
+    --d_ff 128 \
+    --top_k 12 \
     --num_kernels 6 \
     --embed timeF \
     --dropout 0.1 \
     \
-    --lradj type3 \
-    --lradj_factor 20 \
-    --batch_size 16\
-    --patience 20 \
-    --learning_rate 0.0001\
+    --batch_size 32\
+    --patience 30 \
+    --learning_rate 0.001\
     \
     --gpu 0 \
