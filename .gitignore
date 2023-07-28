@@ -6,3 +6,4 @@ test_results/
 train_results/
 vali_results/
 result_imputation.txt
+result_prediction.txt

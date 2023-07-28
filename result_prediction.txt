@@ -1,6 +1,0 @@
-20230727_153745_TimesNet_prediction_flow_dm64_df64_el2_topk5_nk6_fq_t_Exp  
-rmse:192.35, mae:140.93, mape:14.53%
-
-20230727_171959_TimesNet_prediction_flow_dm256_df256_el2_topk5_nk6_fq_t_Exp  
-rmse:162.75, mae:120.02, mape:12.09%
-
