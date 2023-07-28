@@ -9,7 +9,7 @@ python -u main.py \
     --speed_data_path speed-5min.csv \
     --dataloader_type flow \
     --freq t \
-    --data_shrink 3 \
+    --data_shrink 2 \
     \
     --seq_len 36 \
     --label_len 0 \
@@ -21,7 +21,7 @@ python -u main.py \
     --c_out 40\
     --d_model 64 \
     --d_ff 64 \
-    --top_k 12 \
+    --top_k 8 \
     --num_kernels 6 \
     --embed timeF \
     --dropout 0.1 \
