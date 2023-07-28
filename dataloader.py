@@ -99,7 +99,7 @@ class Dataset_Custom(Dataset):
         else:
             df_data = df_data.values
         
-        num_days_train = int(self.num_day * 0.9)
+        num_days_train = int(self.num_day * 0.85)
         num_days_test = int(self.num_day * 0.02)
         num_days_vali = self.num_day - num_days_train - num_days_test
 
