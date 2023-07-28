@@ -21,10 +21,13 @@ python -u main.py \
     --c_out 40\
     --d_model 64 \
     --d_ff 64 \
-    --top_k 8 \
+    --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
     --dropout 0.1 \
+    --trans_layers 2 \
+    --nheads 4 \
+    --t_ff 128 \
     \
     --batch_size 32\
     --patience 40 \

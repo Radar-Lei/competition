@@ -17,12 +17,6 @@ def FFT_for_Period(x, k=2):
     period = x.shape[1] // top_list
     return period, abs(xf).mean(-1)[:, top_list]
 
-def get_torch_trans(heads=8, layers=1, channels=64):
-    encoder_layer = nn.TransformerEncoderLayer(
-        d_model=channels, nhead=heads, dim_feedforward=32, dropout=0.2, activation="gelu"
-    )
-    return nn.TransformerEncoder(encoder_layer, num_layers=layers)
-
 
 class TimesBlock(nn.Module):
     def __init__(self, configs):
@@ -41,42 +35,70 @@ class TimesBlock(nn.Module):
         )
 
     def forward(self, x):
-        B, T, N = x.size()
-        period_list, period_weight = FFT_for_Period(x, self.k)
+        # x is of shape (B, L, K, d_model)
+        enc_out = []
+        sliced_tensors = torch.unbind(x, dim=2)
+        for each_tensor in sliced_tensors:
+            B, T, N = each_tensor.size()
+            period_list, period_weight = FFT_for_Period(each_tensor, self.k)
 
-        res = []
-        for i in range(self.k):
-            period = period_list[i]
-            # padding
-            if (self.seq_len + self.pred_len) % period != 0:
-                length = (
-                                 ((self.seq_len + self.pred_len) // period) + 1) * period
-                padding = torch.zeros([x.shape[0], (length - (self.seq_len + self.pred_len)), x.shape[2]]).to(x.device)
-                out = torch.cat([x, padding], dim=1)
-            else:
-                length = (self.seq_len + self.pred_len)
-                out = x
-            # reshape
-            out = out.reshape(B, length // period, period,
-                              N).permute(0, 3, 1, 2).contiguous()
-            # 2D conv: from 1d Variation to 2d Variation
-            B, C, num_period, period = out.shape
-            # out = out.squeeze(2) # (B, C, L)
-            out = self.conv(out)
-            # reshape back
-            out = out.permute(0, 2, 3, 1).reshape(B, -1, N)
-            res.append(out[:, :(self.seq_len + self.pred_len), :])
-        res = torch.stack(res, dim=-1)
-        # adaptive aggregation
-        period_weight = F.softmax(period_weight, dim=1)
-        period_weight = period_weight.unsqueeze(
-            1).unsqueeze(1).repeat(1, T, N, 1)
-        res = torch.sum(res * period_weight, -1)
+            res = []
+            for i in range(self.k):
+                period = period_list[i]
+                # padding
+                if (self.seq_len + self.pred_len) % period != 0:
+                    length = (
+                                    ((self.seq_len + self.pred_len) // period) + 1) * period
+                    padding = torch.zeros([each_tensor.shape[0], (length - (self.seq_len + self.pred_len)), x.shape[2]]).to(x.device)
+                    out = torch.cat([each_tensor, padding], dim=1)
+                else:
+                    length = (self.seq_len + self.pred_len)
+                    out = each_tensor
+                # reshape
+                out = out.reshape(B, length // period, period,
+                                N).permute(0, 3, 1, 2).contiguous()
+                # 2D conv: from 1d Variation to 2d Variation
+                B, C, num_period, period = out.shape
+                # out = out.squeeze(2) # (B, C, L)
+                out = self.conv(out)
+                # reshape back
+                out = out.permute(0, 2, 3, 1).reshape(B, -1, N)
+                res.append(out[:, :(self.seq_len + self.pred_len), :])
+            res = torch.stack(res, dim=-1)
+            # adaptive aggregation
+            period_weight = F.softmax(period_weight, dim=1)
+            period_weight = period_weight.unsqueeze(
+                1).unsqueeze(1).repeat(1, T, N, 1)
+            res = torch.sum(res * period_weight, -1)
+            enc_out.append(res.unsqueeze(2)) # each (B,L_dist,d_model) -> (B,L_dist,1,d_model)
+        # Concatenate the transformed tensors to get a tensor of shape (B, L_hist, K, d_model)
+        enc_out = torch.cat(enc_out, dim=2)
         # residual connection
-        res = res + x
-        return res
-    
+        return enc_out + x
 
+class SpatialEncoder(nn.Module):
+    def __init__(self, channels, heads, layers, t_ff):
+        super(SpatialEncoder, self).__init__()
+        self.layer = nn.TransformerEncoder(nn.TransformerEncoderLayer(d_model=channels, 
+                                                                    nhead=heads, 
+                                                                    dim_feedforward=t_ff, 
+                                                                    dropout=0.1, 
+                                                                    activation="gelu"
+                                                                    ), 
+                                                                    num_layers=layers,
+                                                                    batch_first=True
+                                                                    )
+    def forward(self, x):
+        # x is of shape (B, L, K, d_model)
+        enc_out = []
+        sliced_tensors = torch.unbind(x, dim=1)
+        for each_tensor in sliced_tensors:
+            transformed_tensor = self.layer(each_tensor).unsqueeze(1)
+            enc_out.append(transformed_tensor)
+        # Concatenate the transformed tensors to get a tensor of shape (B, L_hist, K, d_model)
+        enc_out = torch.cat(enc_out, dim=1)
+        return enc_out
+        
 class Model(nn.Module):
     def __init__(self, configs):
         super(Model, self).__init__()
@@ -87,10 +109,13 @@ class Model(nn.Module):
         self.pred_len = configs.pred_len
         self.model = nn.ModuleList([TimesBlock(configs)
                                     for _ in range(configs.e_layers)])
+
         self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq,
                                            configs.dropout)
         # self.fea_transformer = get_torch_trans(heads=2, layers=1, channels=configs.seq_len)
         # self.temporal_transformer = get_torch_trans(heads=2, layers=1, channels=configs.d_model)
+        self.spatial_encoders = nn.ModuleList([SpatialEncoder(configs.d_model, configs.nheads, configs.trans_layers, configs.t_ff)
+                                               for _ in range(configs.e_layers)])
 
         self.layer = configs.e_layers
         self.layer_norm = nn.LayerNorm(configs.d_model)
@@ -98,7 +123,7 @@ class Model(nn.Module):
             self.predict_linear = nn.Linear(
                 self.seq_len, self.pred_len + self.seq_len)
             self.projection = nn.Linear(
-                configs.d_model, configs.c_out, bias=True)
+                configs.d_model, 1, bias=True)
         if self.task_name == 'imputation' or self.task_name == 'anomaly_detection':
             self.projection = nn.Linear(
                 configs.d_model, configs.c_out, bias=True)
@@ -111,15 +136,19 @@ class Model(nn.Module):
             torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
         x_enc /= stdev
 
-        # embedding x_enc is of shape (B, L_hist, K) # T is L_hist, C is d_model
-        enc_out = self.enc_embedding(x_enc, x_mark_enc)  # [B,L,d_model] [B,L_hist,C]
-        enc_out = self.predict_linear(enc_out.permute(0, 2, 1)).permute(
-            0, 2, 1)  # align temporal dimension # [B,L_hist,d_model] -> [B,L_hist+h_pred,d_model] 
+        # embedding x_enc is of shape (B, L_hist, K) # T is L_hist
+        enc_out = self.enc_embedding(x_enc, x_mark_enc)  # enc_out is of shape (B, L_hist, K, d_model)
+        # align temporal dimension # [B,L_hist, K, d_model] -> [B,L_hist+h_pred,K,d_model]
+        enc_out = self.predict_linear(enc_out.permute(0, 3, 2, 1)).permute(0, 3, 2, 1)
+        B, L, K, d_model = enc_out.shape
+
         # TimesNet
         for i in range(self.layer):
+            enc_out = self.spatial_encoders[i](enc_out)
             enc_out = self.layer_norm(self.model[i](enc_out))
-        # porject back [B,L_hist+h_pred,d_model] -> [B,L_hist+h_pred,C]
-        dec_out = self.projection(enc_out)
+
+        # porject back [B,L_hist+h_pred,d_model] -> [B,L_hist+h_pred,K,]
+        dec_out = self.projection(enc_out).squeeze(-1)
 
         # De-Normalization from Non-stationary Transformer
         dec_out = dec_out * \

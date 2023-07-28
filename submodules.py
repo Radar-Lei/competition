@@ -4,18 +4,22 @@ import math
 import numpy as np
 
 class TokenEmbedding(nn.Module):
-    def __init__(self, c_in, d_model):
+    def __init__(self, d_model):
         super(TokenEmbedding, self).__init__()
         padding = 1 if torch.__version__ >= '1.5.0' else 2
-        self.tokenConv = nn.Conv1d(in_channels=c_in, out_channels=d_model,
-                                   kernel_size=3, padding=padding, padding_mode='circular', bias=False)
+        self.tokenConv = nn.Conv2d(in_channels=1, out_channels=d_model,
+                                   kernel_size=(3, 1), padding=(padding, 0), padding_mode='circular', bias=False)
         for m in self.modules():
-            if isinstance(m, nn.Conv1d):
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(
                     m.weight, mode='fan_in', nonlinearity='leaky_relu')
 
     def forward(self, x):
-        x = self.tokenConv(x.permute(0, 2, 1)).transpose(1, 2)
+        # Add an extra dimension
+        x = x.unsqueeze(3) # of shape (B, L_hist, K, 1)
+        # Apply convolution
+        # output of shape (B, d_model, L_hist, K) --> (B, L_hist, K, d_model)
+        x = self.tokenConv(x.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
         return x
 
 class PositionalEmbedding(nn.Module):
@@ -123,35 +127,44 @@ class DataEmbedding(nn.Module):
     def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
         super(DataEmbedding, self).__init__()
 
-        self.value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
+        self.value_embedding = TokenEmbedding(d_model=d_model)
         self.position_embedding = PositionalEmbedding(d_model=d_model)
         self.temporal_embedding = TemporalEmbedding(d_model=d_model, embed_type=embed_type,
                                                     freq=freq) if embed_type != 'timeF' else TimeFeatureEmbedding(
             d_model=d_model, embed_type=embed_type, freq=freq)
-        self.fea_reduce = nn.Linear(c_in, 1, bias=False)
+        self.fusion_embedding = nn.Conv2d(in_channels=d_model * 4, out_channels=d_model, kernel_size=1)
         self.dropout = nn.Dropout(p=dropout)
         self.d_model = d_model
 
     def forward(self, x, x_mark):
         B, L_hist, K = x.shape
+
         fea_pos = np.arange(10).repeat(int(K/10))
         fea_pos = torch.from_numpy(np.expand_dims(fea_pos, axis=0).repeat(B, axis=0)).to(x.device)
         # fea_pos is of shape (B, K)
         # fea_embedding is a tensor of shape (B, K, d_model)
         fea_embedding = fea_encoding(fea_pos, x.device, d_model=self.d_model)
-        # (B, K, d_model) -> (B, 1, K, d_model) -> (B, L_hist, K, d_model) -> (B, L_hist, d_model, K)
-        fea_embedding = fea_embedding.unsqueeze(1).expand([B, L_hist, K, self.d_model]).permute(0,1,3,2)
-        # (B, L_hist, d_model, K) -> (B, L_hist, d_model, 1) -> (B, L_hist, d_model)
-        fea_embedding = self.fea_reduce(fea_embedding).squeeze(-1)
+        # (B, K, d_model) -> (B, 1, K, d_model) -> (B, L_hist, K, d_model)
+        fea_embedding = fea_embedding.unsqueeze(1).expand([B, L_hist, K, self.d_model])
         
         if x_mark is None:
-            # self.value_embedding(x) is of shape (B, L_hist, d_model)
-            # self.position_embedding(x) is of shape (B, L_hist, d_model)
-            # fea_embedding is of shape (B, L_hist, d_model)
-            # self.position_embedding(x) + fea_embedding is of shape (1, L_hist, d_model)
-            x = self.value_embedding(x) + self.position_embedding(x) + fea_embedding
+            # self.value_embedding(x) is of shape (B, L_hist, K, d_model)
+            # fea_embedding is of shape (B, L_hist, K, d_model)
+            # self.position_embedding(x) is of shape (1, L_hist, d_model)
+            x = torch.concat([self.value_embedding(x), 
+                            self.position_embedding(x).unsqueeze(2).expand([B, L_hist, K, self.d_model]), 
+                            fea_embedding], 
+                            dim=-1
+                            )
         else:
-            x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x) + fea_embedding
+            x = torch.concat([self.value_embedding(x),
+                            self.temporal_embedding(x_mark).unsqueeze(2).expand([B, L_hist, K, self.d_model]),
+                            self.position_embedding(x).unsqueeze(2).expand([B, L_hist, K, self.d_model]), 
+                            fea_embedding],
+                            dim=-1
+                            )
+            x = self.fusion_embedding(x.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+
         return self.dropout(x)
     
 
