@@ -14,13 +14,10 @@ class Exp_Imputation(Exp_Basic):
         super(Exp_Imputation, self).__init__(args)
 
     def _build_model(self):
-        
+        model = self.model_dict[self.args.model].Model(self.args).float()
+
         if self.args.use_multi_gpu and self.args.use_gpu:
-            torch.cuda.set_device(0)
-            torch.distributed.init_process_group(backend='nccl')
-            model = nn.parallel.DistributedDataParallel(model, find_unused_parameters=True)
-        else:
-            model = self.model_dict[self.args.model].Model(self.args).float()
+            model = nn.DataParallel(model, device_ids=self.args.device_ids)
 
         return model
 
