@@ -24,6 +24,7 @@ class TimesBlock(nn.Module):
         self.seq_len = configs.seq_len
         self.pred_len = configs.pred_len
         self.k = configs.top_k
+        self.kernel_factor = configs.kernel_factor
 
         # parameter-efficient design
         self.conv = nn.Sequential(
@@ -117,7 +118,7 @@ class Model(nn.Module):
                 configs.d_model, 1, bias=True)
         if self.task_name == 'imputation' or self.task_name == 'anomaly_detection':
             self.projection = nn.Linear(
-                configs.d_model, configs.c_out, bias=True)
+                configs.d_model, 1, bias=True)
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization from Non-stationary Transformer
@@ -164,16 +165,16 @@ class Model(nn.Module):
         x_enc /= stdev
 
         # embedding
-        enc_out = self.enc_embedding(x_enc, x_mark_enc)  # [B,T,C] or [B,L,C]
+        enc_out = self.enc_embedding(x_enc, x_mark_enc)  # (B,L,K,d_model)
+        B,L,K,d_model = enc_out.shape
         # TimesNet
         for i in range(self.layer):
+            enc_out = self.spatial_encoders[i](enc_out) # [B,L,K,d_model]
+            enc_out = enc_out.permute(0,2,1,3).reshape(B*K, L, d_model) # [B*K,L,d_model]
             enc_out = self.layer_norm(self.model[i](enc_out))
-            # # [B,L,C] --> [L,B,C] --> [B,L,C]
-            # enc_out = self.temporal_transformer(enc_out.permute(1,0,2)).permute(1,0,2)
-            # # [C,B,L] --> [B,L,C]
-            # enc_out = self.fea_transformer(enc_out.permute(2,0,1)).permute(1,2,0)
-        # porject back
-        dec_out = self.projection(enc_out)
+            enc_out = enc_out.reshape(B, K, L, d_model).permute(0,2,1,3) # [B,L,K,d_model]
+        # porject to (B,L,K,1) -> (B,L,K)
+        dec_out = self.projection(enc_out).squeeze(-1)
 
         # De-Normalization from Non-stationary Transformer
         dec_out = dec_out * \
@@ -183,50 +184,7 @@ class Model(nn.Module):
                   (means[:, 0, :].unsqueeze(1).repeat(
                       1, self.pred_len + self.seq_len, 1))
         return dec_out
-
-    def anomaly_detection(self, x_enc):
-        # Normalization from Non-stationary Transformer
-        means = x_enc.mean(1, keepdim=True).detach()
-        x_enc = x_enc - means
-        stdev = torch.sqrt(
-            torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
-        x_enc /= stdev
-
-        # embedding
-        enc_out = self.enc_embedding(x_enc, None)  # [B,T,C]
-        # TimesNet
-        for i in range(self.layer):
-            enc_out = self.layer_norm(self.model[i](enc_out))
-        # porject back
-        dec_out = self.projection(enc_out)
-
-        # De-Normalization from Non-stationary Transformer
-        dec_out = dec_out * \
-                  (stdev[:, 0, :].unsqueeze(1).repeat(
-                      1, self.pred_len + self.seq_len, 1))
-        dec_out = dec_out + \
-                  (means[:, 0, :].unsqueeze(1).repeat(
-                      1, self.pred_len + self.seq_len, 1))
-        return dec_out
-
-    def classification(self, x_enc, x_mark_enc):
-        # embedding
-        enc_out = self.enc_embedding(x_enc, None)  # [B,T,C]
-        # TimesNet
-        for i in range(self.layer):
-            enc_out = self.layer_norm(self.model[i](enc_out))
-
-        # Output
-        # the output transformer encoder/decoder embeddings don't include non-linearity
-        output = self.act(enc_out)
-        output = self.dropout(output)
-        # zero-out padding embeddings
-        output = output * x_mark_enc.unsqueeze(-1)
-        # (batch_size, seq_length * d_model)
-        output = output.reshape(output.shape[0], -1)
-        output = self.projection(output)  # (batch_size, num_classes)
-        return output
-
+    
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
         if self.task_name == 'prediction':
             dec_out = self.forecast(x_enc, x_mark_enc, x_dec, x_mark_dec)
@@ -235,4 +193,4 @@ class Model(nn.Module):
             dec_out = self.imputation(
                 x_enc, x_mark_enc, x_dec, x_mark_dec, mask)
             return dec_out  # [B, L, D]
-        return None
+        return None    

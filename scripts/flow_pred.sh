@@ -24,6 +24,7 @@ python -u main.py \
     --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
+    --kernel_factor 2 \
     --dropout 0.1 \
     --trans_layers 2 \
     --nheads 4 \

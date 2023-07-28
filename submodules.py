@@ -169,14 +169,14 @@ class DataEmbedding(nn.Module):
     
 
 class Inception_Block_V1(nn.Module):
-    def __init__(self, in_channels, out_channels, num_kernels=6, init_weight=True):
+    def __init__(self, in_channels, out_channels, num_kernels=6, kernel_factor=2, init_weight=True):
         super(Inception_Block_V1, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.num_kernels = num_kernels
         kernels = []
         for i in range(self.num_kernels):
-            kernels.append(nn.Conv2d(in_channels, out_channels, kernel_size=2 * i + 1, padding=1*i))
+            kernels.append(nn.Conv2d(in_channels, out_channels, kernel_size=kernel_factor * i + 1, padding=int(kernel_factor/2)*i))
         self.kernels = nn.ModuleList(kernels)
         if init_weight:
             self._initialize_weights()
