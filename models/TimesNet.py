@@ -83,10 +83,10 @@ class SpatialEncoder(nn.Module):
                                                                     nhead=heads, 
                                                                     dim_feedforward=t_ff, 
                                                                     dropout=0.1, 
-                                                                    activation="gelu"
+                                                                    activation="gelu",
+                                                                    batch_first=True
                                                                     ), 
                                                                     num_layers=layers,
-                                                                    batch_first=True
                                                                     )
     def forward(self, x):
         # x is of shape (B, L, K, d_model)
