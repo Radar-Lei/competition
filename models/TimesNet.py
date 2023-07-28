@@ -35,46 +35,40 @@ class TimesBlock(nn.Module):
         )
 
     def forward(self, x):
-        # x is of shape (B, L, K, d_model)
-        enc_out = []
-        sliced_tensors = torch.unbind(x, dim=2)
-        for each_tensor in sliced_tensors:
-            B, T, N = each_tensor.size()
-            period_list, period_weight = FFT_for_Period(each_tensor, self.k)
+        B, T, N = x.size()
+        period_list, period_weight = FFT_for_Period(x, self.k)
 
-            res = []
-            for i in range(self.k):
-                period = period_list[i]
-                # padding
-                if (self.seq_len + self.pred_len) % period != 0:
-                    length = (
-                                    ((self.seq_len + self.pred_len) // period) + 1) * period
-                    padding = torch.zeros([each_tensor.shape[0], (length - (self.seq_len + self.pred_len)), x.shape[2]]).to(x.device)
-                    out = torch.cat([each_tensor, padding], dim=1)
-                else:
-                    length = (self.seq_len + self.pred_len)
-                    out = each_tensor
-                # reshape
-                out = out.reshape(B, length // period, period,
-                                N).permute(0, 3, 1, 2).contiguous()
-                # 2D conv: from 1d Variation to 2d Variation
-                B, C, num_period, period = out.shape
-                # out = out.squeeze(2) # (B, C, L)
-                out = self.conv(out)
-                # reshape back
-                out = out.permute(0, 2, 3, 1).reshape(B, -1, N)
-                res.append(out[:, :(self.seq_len + self.pred_len), :])
-            res = torch.stack(res, dim=-1)
-            # adaptive aggregation
-            period_weight = F.softmax(period_weight, dim=1)
-            period_weight = period_weight.unsqueeze(
-                1).unsqueeze(1).repeat(1, T, N, 1)
-            res = torch.sum(res * period_weight, -1)
-            enc_out.append(res.unsqueeze(2)) # each (B,L_dist,d_model) -> (B,L_dist,1,d_model)
-        # Concatenate the transformed tensors to get a tensor of shape (B, L_hist, K, d_model)
-        enc_out = torch.cat(enc_out, dim=2)
+        res = []
+        for i in range(self.k):
+            period = period_list[i]
+            # padding
+            if (self.seq_len + self.pred_len) % period != 0:
+                length = (
+                                 ((self.seq_len + self.pred_len) // period) + 1) * period
+                padding = torch.zeros([x.shape[0], (length - (self.seq_len + self.pred_len)), x.shape[2]]).to(x.device)
+                out = torch.cat([x, padding], dim=1)
+            else:
+                length = (self.seq_len + self.pred_len)
+                out = x
+            # reshape
+            out = out.reshape(B, length // period, period,
+                              N).permute(0, 3, 1, 2).contiguous()
+            # 2D conv: from 1d Variation to 2d Variation
+            B, C, num_period, period = out.shape
+            # out = out.squeeze(2) # (B, C, L)
+            out = self.conv(out)
+            # reshape back
+            out = out.permute(0, 2, 3, 1).reshape(B, -1, N)
+            res.append(out[:, :(self.seq_len + self.pred_len), :])
+        res = torch.stack(res, dim=-1)
+        # adaptive aggregation
+        period_weight = F.softmax(period_weight, dim=1)
+        period_weight = period_weight.unsqueeze(
+            1).unsqueeze(1).repeat(1, T, N, 1)
+        res = torch.sum(res * period_weight, -1)
         # residual connection
-        return enc_out + x
+        res = res + x
+        return res
 
 class SpatialEncoder(nn.Module):
     def __init__(self, channels, heads, layers, t_ff):
@@ -90,14 +84,11 @@ class SpatialEncoder(nn.Module):
                                                                     )
     def forward(self, x):
         # x is of shape (B, L, K, d_model)
-        enc_out = []
-        sliced_tensors = torch.unbind(x, dim=1)
-        for each_tensor in sliced_tensors:
-            transformed_tensor = self.layer(each_tensor).unsqueeze(1)
-            enc_out.append(transformed_tensor)
-        # Concatenate the transformed tensors to get a tensor of shape (B, L_hist, K, d_model)
-        enc_out = torch.cat(enc_out, dim=1)
-        return enc_out
+        B, L, K, d_model = x.shape
+        x = x.reshape(B*L, K, d_model)
+        x = self.layer(x)
+        x = x.reshape(B, L, K, d_model)
+        return x
         
 class Model(nn.Module):
     def __init__(self, configs):
@@ -144,10 +135,12 @@ class Model(nn.Module):
 
         # TimesNet
         for i in range(self.layer):
-            enc_out = self.spatial_encoders[i](enc_out)
-            enc_out = self.layer_norm(self.model[i](enc_out))
+            enc_out = self.spatial_encoders[i](enc_out) # [B,L,K,d_model]
+            enc_out = enc_out.permute(0,2,1,3).reshape(B*K, L, d_model) # [B*K,L,d_model]
+            enc_out = self.layer_norm(self.model[i](enc_out)) # [B*K,L,d_model]
+            enc_out = enc_out.reshape(B, K, L, d_model).permute(0,2,1,3) # [B,L,K,d_model]
 
-        # porject back [B,L_hist+h_pred,d_model] -> [B,L_hist+h_pred,K,]
+        # porject back [B,L_hist+h_pred,K, d_model] -> [B,L_hist+h_pred,K,1] -> [B,L_hist+h_pred,K]
         dec_out = self.projection(enc_out).squeeze(-1)
 
         # De-Normalization from Non-stationary Transformer
