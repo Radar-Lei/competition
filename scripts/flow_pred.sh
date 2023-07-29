@@ -9,7 +9,7 @@ python -u main.py \
     --speed_data_path speed-5min.csv \
     --dataloader_type flow \
     --freq t \
-    --data_shrink 2 \
+    --data_shrink 3 \
     \
     --seq_len 36 \
     --label_len 0 \
@@ -26,13 +26,13 @@ python -u main.py \
     --embed timeF \
     --kernel_factor 2 \
     --dropout 0.1 \
-    --trans_layers 2 \
+    --trans_layers 1 \
     --nheads 4 \
     --t_ff 128 \
     \
-    --batch_size 32\
+    --batch_size 16\
     --patience 40 \
     --learning_rate 0.001\
-    --use_amp 0\
+    --use_amp False\
     \
     --gpu 0 \

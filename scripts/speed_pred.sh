@@ -1,4 +1,3 @@
-# for flow imputation, --d_model 512 d_ff might be a too large model
 python -u main.py \
     --task_name prediction \
     --is_training 0 \
@@ -12,23 +11,28 @@ python -u main.py \
     --freq t \
     --data_shrink 3 \
     \
-    --seq_len 156 \
+    --seq_len 36 \
     --label_len 0 \
-    --pred_len 0 \
+    --pred_len 12 \
     \
     --e_layers 2\
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 128 \
-    --d_ff 128 \
-    --top_k 12 \
+    --d_model 64 \
+    --d_ff 64 \
+    --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
+    --kernel_factor 2 \
     --dropout 0.1 \
+    --trans_layers 1 \
+    --nheads 4 \
+    --t_ff 128 \
     \
-    --batch_size 32\
-    --patience 30 \
-    --learning_rate 0.001\
+    --batch_size 16\
+    --patience 40 \
+    --learning_rate 0.0001\
+    --use_amp False\
     \
     --gpu 0 \
