@@ -41,7 +41,7 @@ class Exp_Prediction(Exp_Basic):
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
-        total_loss = []
+        total_loss = torch.tensor(0.).cuda()
         self.model.eval()
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, _, actual_mask) in enumerate(vali_loader):
@@ -62,13 +62,13 @@ class Exp_Prediction(Exp_Basic):
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].cuda()
 
-                pred = outputs.detach().cpu()
-                true = batch_y.detach().cpu()
+                pred = outputs
+                true = batch_y
 
                 loss = criterion(pred[actual_mask==1], true[actual_mask==1])
 
-                total_loss.append(loss)
-        total_loss = np.average(total_loss)
+                total_loss += loss
+
         self.model.train()
         return total_loss
 
@@ -98,11 +98,17 @@ class Exp_Prediction(Exp_Basic):
             factor=0.8, 
             patience=5, 
             verbose=True
-            )        
+            )
+        
 
         for epoch in range(self.args.train_epochs):
             iter_count = 0
-            train_loss = []
+
+            train_loss = torch.tensor(0.).cuda()
+            train_size = torch.tensor(len(train_loader)).float().cuda()
+            vali_size = torch.tensor(len(vali_loader)).float().cuda()
+            test_size = torch.tensor(len(test_loader)).float().cuda()
+
             train_loader.sampler.set_epoch(epoch) # prevent sampling bug
             self.model.train()
             epoch_time = time.time()
@@ -126,7 +132,7 @@ class Exp_Prediction(Exp_Basic):
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].cuda()
                 loss = criterion(outputs[actual_mask==1], batch_y[actual_mask==1])
-                train_loss.append(loss.item())
+                train_loss += loss
 
                 if ((i + 1) % 100 == 0) and (self.local_rank == 0):
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
@@ -159,23 +165,27 @@ class Exp_Prediction(Exp_Basic):
             
             if self.local_rank == 0:
                 print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
-            train_loss = np.average(train_loss)
+
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
             dist.reduce(train_loss, 0, op=dist.ReduceOp.SUM) # sum loss from all gpus
             dist.reduce(vali_loss, 0, op=dist.ReduceOp.SUM)
             dist.reduce(test_loss, 0, op=dist.ReduceOp.SUM)
+            dist.reduce(train_size, 0, op=dist.ReduceOp.SUM)
+            dist.reduce(vali_size, 0, op=dist.ReduceOp.SUM)
+            dist.reduce(test_size, 0, op=dist.ReduceOp.SUM)
 
             if self.local_rank == 0:
                 print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
-                    epoch + 1, train_steps, train_loss, vali_loss, test_loss))
+                    epoch + 1, train_steps, train_loss / train_size, vali_loss / vali_size, test_loss / test_size))
 
-                early_stopping(vali_loss, self.model, path)
+                early_stopping(vali_loss / vali_size, self.model, path)
                 if early_stopping.early_stop:
                     print("Early stopping")
                     break
 
-            scheduler.step(train_loss)            
+            scheduler.step(train_loss)
+            
         dist.destroy_process_group()
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
