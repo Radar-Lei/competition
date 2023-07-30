@@ -106,7 +106,7 @@ class Model(nn.Module):
                                            configs.dropout)
         # self.fea_transformer = get_torch_trans(heads=2, layers=1, channels=configs.seq_len)
         # self.temporal_transformer = get_torch_trans(heads=2, layers=1, channels=configs.d_model)
-        self.spatial_encoders = nn.ModuleList([SpatialEncoder(configs.d_model, configs.nheads, configs.trans_layers, configs.t_ff)
+        self.spatial_encoders = nn.ModuleList([SpatialEncoder(configs.trans_d_model, configs.nheads, configs.trans_layers, configs.t_ff)
                                                for _ in range(configs.e_layers)])
 
         self.layer = configs.e_layers
@@ -115,10 +115,11 @@ class Model(nn.Module):
             self.predict_linear = nn.Linear(
                 self.seq_len, self.pred_len + self.seq_len)
             self.projection = nn.Linear(
-                configs.d_model, 1, bias=True)
+                configs.trans_d_model, 1, bias=True)
+            self.proj_trans = nn.Linear(configs.d_model, configs.trans_d_model, bias=True)
         if self.task_name == 'imputation' or self.task_name == 'anomaly_detection':
             self.projection = nn.Linear(
-                configs.d_model, 1, bias=True)
+                configs.trans_d_model, 1, bias=True)
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization from Non-stationary Transformer
@@ -133,13 +134,15 @@ class Model(nn.Module):
         # align temporal dimension # [B,L_hist, K, d_model] -> [B,L_hist+h_pred,K,d_model]
         enc_out = self.predict_linear(enc_out.permute(0, 3, 2, 1)).permute(0, 3, 2, 1)
         B, L, K, d_model = enc_out.shape
-
+        enc_out = enc_out.permute(0,2,1,3).reshape(B*K, L, d_model) # [B*K,L,d_model]
         # TimesNet
         for i in range(self.layer):
-            enc_out = self.spatial_encoders[i](enc_out) # [B,L,K,d_model]
-            enc_out = enc_out.permute(0,2,1,3).reshape(B*K, L, d_model) # [B*K,L,d_model]
             enc_out = self.layer_norm(self.model[i](enc_out)) # [B*K,L,d_model]
-            enc_out = enc_out.reshape(B, K, L, d_model).permute(0,2,1,3) # [B,L,K,d_model]
+        
+        enc_out = enc_out.reshape(B, K, L, d_model).permute(0,2,1,3) # [B,L,K,d_model]
+        enc_out = self.proj_trans(enc_out)
+        for i in range(self.layer):
+            enc_out = self.spatial_encoders[i](enc_out) # [B,L,K,d_model]
 
         # porject back [B,L_hist+h_pred,K, d_model] -> [B,L_hist+h_pred,K,1] -> [B,L_hist+h_pred,K]
         dec_out = self.projection(enc_out).squeeze(-1)

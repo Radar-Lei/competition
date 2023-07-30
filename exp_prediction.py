@@ -25,6 +25,11 @@ class Exp_Prediction(Exp_Basic):
             model = self.model_dict[self.args.model].Model(self.args).cuda()
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
             model = nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank])
+            if len(self.args.trained_model) > 1:
+                print("loading model")
+                path = os.path.join(self.args.checkpoints, self.args.trained_model)
+                checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'))
+                model.load_state_dict(checkpoint['model_state_dict'])            
             self.scaler = GradScaler() # mixed precision training
         return model
 
@@ -32,9 +37,24 @@ class Exp_Prediction(Exp_Basic):
         data_set, data_loader = data_provider(self.args, flag, scaler)
         return data_set, data_loader
 
-    def _select_optimizer(self):
-        model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5)
+
+    def _select_optimizer(self, model):
+        model_optim = optim.Adam(model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5)
+        if self.args.trained_model:
+            print("loading optimizer")
+            path = os.path.join(self.args.checkpoints, self.args.trained_model)
+            checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'))
+            model_optim.load_state_dict(checkpoint['optimizer_state_dict'])
         return model_optim
+    
+    def _get_scheduler(self, optimizer):
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=5, verbose=True)
+        if self.args.trained_model:
+            print("loading scheduler")
+            path = os.path.join(self.args.checkpoints, self.args.trained_model)
+            checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'))
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        return scheduler
 
     def _select_criterion(self):
         criterion = nn.MSELoss().cuda()
@@ -86,19 +106,14 @@ class Exp_Prediction(Exp_Basic):
         train_steps = len(train_loader)
         early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
 
-        model_optim = self._select_optimizer()
+        model_optim = self._select_optimizer(self.model)
         criterion = self._select_criterion()
 
         folder_path = './train_results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            model_optim, 
-            factor=0.8, 
-            patience=5, 
-            verbose=True
-            )
+        scheduler = self._get_scheduler(model_optim)
         
 
         for epoch in range(self.args.train_epochs):
@@ -179,7 +194,7 @@ class Exp_Prediction(Exp_Basic):
                 print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                     epoch + 1, train_steps, train_loss / train_size, vali_loss / vali_size, test_loss / test_size))
 
-                early_stopping(vali_loss / vali_size, self.model, path)
+                early_stopping(vali_loss / vali_size, self.model, model_optim, scheduler, path)
                 if early_stopping.early_stop:
                     print("Early stopping")
                     break

@@ -10,7 +10,7 @@ import datetime
 import os
 
 # random seed will control all random operations in all .py it calls
-fix_seed = 20
+fix_seed = 2021
 random.seed(fix_seed)
 torch.manual_seed(fix_seed)
 np.random.seed(fix_seed)
@@ -58,9 +58,11 @@ def prepare():
     parser.add_argument('--kernel_factor', type=int, default=2, help='determine kernel size of inception module, has to be 2 multiplier')
     parser.add_argument('--dropout', type=float, default=0.1, help='dropout')
     # for transformer encoder (spatial)
+    parser.add_argument('--trans_d_model', type=int, default=64)
     parser.add_argument('--trans_layers', type=int, default=1, help='num of transformer encoder layers')
     parser.add_argument('--nheads', type=int, default=4, help='num of multi-heads')
     parser.add_argument('--t_ff', type=int, default=128, help='dimension of feed forward network in transformer')
+    parser.add_argument('--trans_e_layers', type=int, default=1, help='')
 
 
     # optimization
@@ -118,6 +120,7 @@ if __name__ == '__main__':
                 ii)
             
             if args.trained_model != '':
+                print('using trained model')
                 setting = args.trained_model
                 
             exp = Exp(args)
