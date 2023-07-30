@@ -8,6 +8,8 @@ import numpy as np
 from utils import metric, visual, EarlyStopping
 import time
 import pandas as pd
+import torch.distributed as dist
+from torch.cuda.amp import GradScaler
 
 
 class Exp_Prediction(Exp_Basic):
@@ -15,10 +17,15 @@ class Exp_Prediction(Exp_Basic):
         super(Exp_Prediction, self).__init__(args)
 
     def _build_model(self):
-        model = self.model_dict[self.args.model].Model(self.args).float()
 
         if self.args.use_multi_gpu and self.args.use_gpu:
-            model = nn.DataParallel(model, device_ids=self.args.device_ids)
+            dist.init_process_group(backend='nccl')
+            self.local_rank = int(os.environ['LOCAL_RANK'])
+            torch.cuda.set_device(self.local_rank)
+            model = self.model_dict[self.args.model].Model(self.args).cuda()
+            model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+            model = nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank])
+            self.scaler = GradScaler() # mixed precision training
         return model
 
     def _get_data(self, flag, scaler=None):
@@ -30,41 +37,38 @@ class Exp_Prediction(Exp_Basic):
         return model_optim
 
     def _select_criterion(self):
-        criterion = nn.MSELoss()
+        criterion = nn.MSELoss().cuda()
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
-        total_loss = []
+        total_loss = torch.tensor(0.).cuda()
         self.model.eval()
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, _, actual_mask) in enumerate(vali_loader):
-                batch_x = batch_x.float().to(self.device)
+                batch_x = batch_x.float().cuda()
                 batch_y = batch_y.float()
 
-                batch_x_mark = batch_x_mark.float().to(self.device)
-                batch_y_mark = batch_y_mark.float().to(self.device)
+                batch_x_mark = batch_x_mark.float().cuda()
+                batch_y_mark = batch_y_mark.float().cuda()
 
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().cuda()
 
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                else:
-                    outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+
+                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                 f_dim = 0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].cuda()
 
-                pred = outputs.detach().cpu()
-                true = batch_y.detach().cpu()
+                pred = outputs
+                true = batch_y
 
                 loss = criterion(pred[actual_mask==1], true[actual_mask==1])
 
-                total_loss.append(loss)
-        total_loss = np.average(total_loss)
+                total_loss += loss
+
         self.model.train()
         return total_loss
 
@@ -94,41 +98,43 @@ class Exp_Prediction(Exp_Basic):
             factor=0.8, 
             patience=5, 
             verbose=True
-            )        
+            )
+        
 
         for epoch in range(self.args.train_epochs):
             iter_count = 0
-            train_loss = []
 
+            train_loss = torch.tensor(0.).cuda()
+            train_size = torch.tensor(len(train_loader)).float().cuda()
+            vali_size = torch.tensor(len(vali_loader)).float().cuda()
+            test_size = torch.tensor(len(test_loader)).float().cuda()
+
+            train_loader.sampler.set_epoch(epoch) # prevent sampling bug
             self.model.train()
             epoch_time = time.time()
             # here actual_mask is mask for y seq only, where 0 values in the data mask as 0, otherwise 1
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, _, actual_mask) in enumerate(train_loader):
                 iter_count += 1
-                model_optim.zero_grad()
 
-                batch_x = batch_x.float().to(self.device)
-                batch_y = batch_y.float().to(self.device)
-                batch_x_mark = batch_x_mark.float().to(self.device)
-                batch_y_mark = batch_y_mark.float().to(self.device)
+                batch_x = batch_x.float().cuda()
+                batch_y = batch_y.float().cuda()
+                batch_x_mark = batch_x_mark.float().cuda()
+                batch_y_mark = batch_y_mark.float().cuda()
 
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().cuda()
 
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                else:
-                    outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+
+                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                 f_dim =  0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].cuda()
                 loss = criterion(outputs[actual_mask==1], batch_y[actual_mask==1])
-                train_loss.append(loss.item())
+                train_loss += loss
 
-                if (i + 1) % 100 == 0:
+                if ((i + 1) % 100 == 0) and (self.local_rank == 0):
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
                     speed = (time.time() - time_now) / iter_count
                     left_time = speed * ((self.args.train_epochs - epoch) * train_steps - i)
@@ -136,10 +142,12 @@ class Exp_Prediction(Exp_Basic):
                     iter_count = 0
                     time_now = time.time()
 
-                loss.backward()
-                model_optim.step()
+                model_optim.zero_grad()
+                self.scaler.scale(loss).backward()
+                self.scaler.step(model_optim)
+                self.scaler.update()
 
-            if (epoch + 1) % 20 == 0:
+            if ((epoch + 1) % 20 == 0) and (self.local_rank == 0):
                 # eval
                 outputs = outputs.detach().cpu().numpy()
                 pred = outputs[0] # (L_pred, K)
@@ -154,21 +162,31 @@ class Exp_Prediction(Exp_Basic):
                     gt = np.concatenate((hist[:, j], true[:, j]*mask[:,j]), axis=0)
                     pd = np.concatenate((hist[:, j], pred[:, j]*mask[:,j]), axis=0)
                     visual(gt, pd, os.path.join(folder_path, str(epoch) + '_' + str(j) + '.png'))
+            
+            if self.local_rank == 0:
+                print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
 
-            print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
-            train_loss = np.average(train_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
+            dist.reduce(train_loss, 0, op=dist.ReduceOp.SUM) # sum loss from all gpus
+            dist.reduce(vali_loss, 0, op=dist.ReduceOp.SUM)
+            dist.reduce(test_loss, 0, op=dist.ReduceOp.SUM)
+            dist.reduce(train_size, 0, op=dist.ReduceOp.SUM)
+            dist.reduce(vali_size, 0, op=dist.ReduceOp.SUM)
+            dist.reduce(test_size, 0, op=dist.ReduceOp.SUM)
 
-            print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
-                epoch + 1, train_steps, train_loss, vali_loss, test_loss))
-            early_stopping(vali_loss, self.model, path)
-            if early_stopping.early_stop:
-                print("Early stopping")
-                break
+            if self.local_rank == 0:
+                print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
+                    epoch + 1, train_steps, train_loss / train_size, vali_loss / vali_size, test_loss / test_size))
 
-            scheduler.step(train_loss)            
+                early_stopping(vali_loss / vali_size, self.model, path)
+                if early_stopping.early_stop:
+                    print("Early stopping")
+                    break
 
+            scheduler.step(train_loss)
+            
+        dist.destroy_process_group()
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
 
@@ -207,11 +225,8 @@ class Exp_Prediction(Exp_Basic):
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
 
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                else:
-                    outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+
+                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                 if type(actual_mask) is int:
                     actual_mask = torch.ones_like(outputs)

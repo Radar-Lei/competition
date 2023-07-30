@@ -1,10 +1,11 @@
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, distributed
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 import os
 from utils import time_features
 import numpy as np
 import datetime
+import torch
 
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', 
@@ -237,6 +238,11 @@ class Dataset_Custom(Dataset):
     def pred_transform(self):
         return self.scaler
     
+def get_ddp_generator(seed=3407):
+    local_rank = int(os.environ['LOCAL_RANK'])
+    g = torch.Generator()
+    g.manual_seed(seed + local_rank)
+    return g
 
 def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
@@ -249,7 +255,7 @@ def data_provider(args, flag, scaler=None):
         batch_size = 1  # bsz=1 for evaluation
         freq = args.freq
     else:
-        shuffle_flag = True
+        shuffle_flag = False # always False since using DistributedSampler, which shuffles the data among workers
         drop_last = True
         batch_size = args.batch_size  # bsz for train and valid
         freq = args.freq
@@ -272,10 +278,29 @@ def data_provider(args, flag, scaler=None):
         task_name = args.task_name,
         data_shrink=args.data_shrink,
     )
+
+    dataset_sampler = distributed.DistributedSampler(data_set)
+
     print(flag, len(data_set))
-    data_loader = DataLoader(
-        data_set,
-        batch_size=batch_size,
-        shuffle=shuffle_flag,
-        drop_last=drop_last)
+
+    if flag == 'train':
+        data_loader = DataLoader(
+            data_set,
+            batch_size=batch_size,
+            shuffle=shuffle_flag,
+            drop_last=drop_last,
+            num_workers=8,
+            pin_memory=True,
+            sampler=dataset_sampler,
+            generator=get_ddp_generator())
+    else:
+        data_loader = DataLoader(
+            data_set,
+            batch_size=batch_size,
+            shuffle=shuffle_flag,
+            drop_last=drop_last,
+            num_workers=8,
+            pin_memory=True,
+            sampler=dataset_sampler)
+    
     return data_set, data_loader
