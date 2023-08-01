@@ -27,15 +27,18 @@ class Exp_Imputation(Exp_Basic):
             self.local_rank = int(os.environ['LOCAL_RANK'])
             torch.cuda.set_device(self.local_rank)
             model = self.model_dict[self.args.model].Model(self.args).cuda()   
+
             if (len(self.args.trained_model) > 1):
                 print("loading model")
                 path = os.path.join(self.args.checkpoints, self.args.trained_model)
                 # when trying to load the model and continue to train on Multi-GPU, must add map_location
                 checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'), map_location=f'cuda:{self.local_rank}')
                 model.load_state_dict(checkpoint['model_state_dict'])  
+                
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model) # batch_norm sync
             model = nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank])  
-            self.scaler = GradScaler() # mixed precision training           
+            self.scaler = GradScaler() # mixed precision training         
+
         return model
 
     def _get_data(self, flag, scaler=None):

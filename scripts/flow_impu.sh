@@ -1,4 +1,5 @@
 export NUMEXPR_MAX_THREADS=128
+export OMP_NUM_THREADS=1
 torchrun --standalone --nproc_per_node=2 main.py \
     --task_name imputation \
     --is_training 0 \
@@ -20,8 +21,8 @@ torchrun --standalone --nproc_per_node=2 main.py \
     --enc_in 40\
     --dec_in 40\
     --c_out 40\
-    --d_model 256 \
-    --d_ff 256 \
+    --d_model 128 \
+    --d_ff 128 \
     --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
