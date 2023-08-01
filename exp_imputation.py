@@ -59,6 +59,8 @@ class Exp_Imputation(Exp_Basic):
                 mask = mask.to(self.device)
                 actual_mask = actual_mask.to(self.device)
                 target_mask = actual_mask - mask
+                target_mask[target_mask <0] = 0
+                mask = actual_mask * mask
 
                 inp = batch_x.masked_fill(mask == 0, 0)
 
@@ -127,6 +129,7 @@ class Exp_Imputation(Exp_Basic):
 
                 actual_mask = actual_mask.to(self.device)
                 target_mask = actual_mask - mask
+                mask = actual_mask * mask
                 target_mask[target_mask <0] = 0
 
                 # random mask
@@ -229,6 +232,7 @@ class Exp_Imputation(Exp_Basic):
                     actual_mask = actual_mask.to(self.device)
                     target_mask = actual_mask - mask
                     target_mask[target_mask <0] = 0
+                    mask = mask * actual_mask
                 else:
                     target_mask = 1 - mask
                     actual_mask = 1
