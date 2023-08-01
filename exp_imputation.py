@@ -10,6 +10,11 @@ import time
 import pandas as pd
 import torch.distributed as dist
 from torch.cuda.amp import GradScaler
+from collections import OrderedDict
+"""
+if the saved model is saving with 'model.state_dict()', instead of 'model.module.state_dict()'.
+It was wrapped with DDP, we need to use OrderedDict to remove the 'module.' in the key.
+"""
 
 class Exp_Imputation(Exp_Basic):
     def __init__(self, args):
@@ -21,16 +26,16 @@ class Exp_Imputation(Exp_Basic):
             dist.init_process_group(backend='nccl')
             self.local_rank = int(os.environ['LOCAL_RANK'])
             torch.cuda.set_device(self.local_rank)
-            model = self.model_dict[self.args.model].Model(self.args).cuda()
-            model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-            model = nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank])
-            if len(self.args.trained_model) > 1:
+            model = self.model_dict[self.args.model].Model(self.args).cuda()   
+            if (len(self.args.trained_model) > 1):
                 print("loading model")
                 path = os.path.join(self.args.checkpoints, self.args.trained_model)
-                checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'))
-                model.load_state_dict(checkpoint['model_state_dict'])            
-            self.scaler = GradScaler() # mixed precision training
-
+                # when trying to load the model and continue to train on Multi-GPU, must add map_location
+                checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'), map_location=f'cuda:{self.local_rank}')
+                model.load_state_dict(checkpoint['model_state_dict'])  
+            model = nn.SyncBatchNorm.convert_sync_batchnorm(model) # batch_norm sync
+            model = nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank])  
+            self.scaler = GradScaler() # mixed precision training           
         return model
 
     def _get_data(self, flag, scaler=None):
@@ -39,19 +44,20 @@ class Exp_Imputation(Exp_Basic):
 
     def _select_optimizer(self, model):
         model_optim = optim.Adam(model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5)
-        if self.args.trained_model:
+        if (self.args.trained_model != ''):
             print("loading optimizer")
             path = os.path.join(self.args.checkpoints, self.args.trained_model)
-            checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'))
+            # must add map_location for continue training on Multi-GPU by loading the trained model
+            checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'), map_location=f'cuda:{self.local_rank}')
             model_optim.load_state_dict(checkpoint['optimizer_state_dict'])
         return model_optim
     
     def _get_scheduler(self, optimizer):
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.8, patience=5, verbose=True)
-        if self.args.trained_model:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=5, verbose=True)
+        if (self.args.trained_model != ''):
             print("loading scheduler")
             path = os.path.join(self.args.checkpoints, self.args.trained_model)
-            checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'))
+            checkpoint = torch.load(os.path.join(path, 'checkpoint.pth'), map_location=f'cuda:{self.local_rank}')
             scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         return scheduler
     
@@ -60,6 +66,10 @@ class Exp_Imputation(Exp_Basic):
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
+        """
+        Since dist.ReduceOp do not have a AVERAGE operation, 
+        we cannot use list to store it and then average it 
+        """
         total_loss = torch.tensor(0.).cuda()
         self.model.eval()
 

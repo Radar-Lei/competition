@@ -97,7 +97,10 @@ class EarlyStopping:
             print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
             self.val_loss_min = val_loss
         torch.save({
-                    'model_state_dict': model.state_dict(),
+                    # save model use model.module.state_dict() instead of model.state_dict()
+                    # without module, the saved model would save the structure of DDP, module
+                    # would save the model only
+                    'model_state_dict': model.module.state_dict(),
                     'optimizer_state_dict': model_optim.state_dict(),
                     'scheduler_state_dict': scheduler.state_dict(),
                     }, path + '/' + 'checkpoint.pth')
