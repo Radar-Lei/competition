@@ -65,9 +65,9 @@ class Dataset_Custom(Dataset):
         else: # self.loader_type == 'speed':
             df_raw = df_speed_raw
         
-        df_raw[df_raw == 0] = np.nan
-        df_raw.fillna(method='ffill', inplace=True)
-        df_raw.fillna(method='bfill', inplace=True)
+        # df_raw[df_raw == 0] = np.nan
+        # df_raw.fillna(method='ffill', inplace=True)
+        # df_raw.fillna(method='bfill', inplace=True)
         '''
         df_raw.columns: ['date', ...(other features), target feature]
         '''
