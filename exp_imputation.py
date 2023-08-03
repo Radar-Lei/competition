@@ -77,7 +77,7 @@ class Exp_Imputation(Exp_Basic):
         mask = torch.from_numpy(np.repeat(mask[np.newaxis, :, :], vali_loader.batch_size, axis=0))
 
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask, _) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
@@ -93,14 +93,14 @@ class Exp_Imputation(Exp_Basic):
                 # mask[mask > self.args.mask_rate] = 1  # remained
                 mask = mask.to(self.device)
                 # mask for the NaN values in the original data
-                actual_mask = torch.ne(batch_x, 0).float()
-                mask = actual_mask * mask
-
+                actual_mask = actual_mask.to(self.device)
+                # target mask should be compute before actula_mask * mask
                 target_mask = actual_mask - mask
-                obs_mask = actual_mask - target_mask
+                target_mask[target_mask <0] = 0
+                mask = actual_mask * mask # here is actully the obs_mask
 
                 # outputs is of shape (B, n_samples, L_hist, K)
-                outputs = self.model.evaluate(batch_x, batch_x_mark, None, None, mask)
+                outputs = self.model.evaluate(batch_x, batch_x_mark, None, None, mask, target_mask)
 
                 # eval
                 B, n_samples, L, K = outputs.shape
@@ -123,7 +123,7 @@ class Exp_Imputation(Exp_Basic):
                 all_medians.append(samples_median)
                 all_targets.append(c_target)
                 all_masks.append(target_mask.detach().cpu().numpy())
-                all_obs_masks.append(obs_mask.detach().cpu().numpy())
+                all_obs_masks.append(mask.detach().cpu().numpy())
         if i > 0:
             all_medians = np.concatenate(all_medians, 0) # (B*N_B, L_hist, K)
             all_targets = np.concatenate(all_targets, 0) # (B*N_B, L_hist, K)
@@ -139,6 +139,7 @@ class Exp_Imputation(Exp_Basic):
         _, _, rmse, mape, _ = metric(all_medians[all_masks == 1], all_targets[all_masks == 1])
         CRPS = self._calc_quantile_CRPS(all_targets, all_outputs, all_masks)
 
+        # only visualize for vali dataset
         if setting is None:
             # if setting is None, do not visualize, return directly
             self.model.train()
@@ -208,7 +209,7 @@ class Exp_Imputation(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask, _) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
 
@@ -221,13 +222,11 @@ class Exp_Imputation(Exp_Basic):
                 # mask[mask <= self.args.mask_rate] = 0  # masked
                 # mask[mask > self.args.mask_rate] = 1  # remained
 
-                # mask for the NaN values in the original data, 1 for valid values
-                actual_mask = torch.ne(batch_x, 0).float()
+                actual_mask = actual_mask.to(self.device)
+                target_mask = actual_mask - mask # before actual_mask * mask
                 mask = actual_mask * mask
-
-                target_mask = actual_mask - mask
                 
-                outputs = self.model(batch_x, batch_x_mark, None, None, mask)
+                outputs = self.model(batch_x, batch_x_mark, None, None, mask, target_mask)
 
                 f_dim = 0
                 # outputs is of shape (B, L_hist, K)
@@ -250,7 +249,7 @@ class Exp_Imputation(Exp_Basic):
             curr_epoch_time = time.time()
             print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
-            if (epoch + 1) % 1 == 0:
+            if (epoch + 1) % 5 == 0:
                 # epoch 
                 vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, epoch+1, setting)
                 test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, epoch+1)

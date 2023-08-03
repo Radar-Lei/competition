@@ -28,7 +28,7 @@ parser.add_argument('--model', type=str, default='DiffusionBase',
                         help='model name, options: [DiffusionBase, TimesNet]')
 
 # data loader
-parser.add_argument('--root_path', type=str, default='./dataset/competition/train-5min', help='root path of the data file') # competition
+parser.add_argument('--root_path', type=str, default='./dataset/PeMS7_228', help='root path of the data file') # competition
 parser.add_argument('--pred_root_path', type=str, default='./dataset/competition/test-5min', help='root path of the test data file') # competition
 parser.add_argument('--flow_data_path', type=str, default='flow-5min.csv', help='data file') # flow.csv
 parser.add_argument('--speed_data_path', type=str, default='speed-5min.csv', help='data file') # speed.csv
@@ -38,7 +38,7 @@ parser.add_argument('--freq', type=str, default='t',
                     help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
 parser.add_argument('--data_shrink', type=int, default=3, help='reduce the numbder of samples')
 
-# forecasting task
+# imputation task
 parser.add_argument('--seq_len', type=int, default=156, help='input sequence length')
 parser.add_argument('--label_len', type=int, default=0, help='start token length')
 parser.add_argument('--pred_len', type=int, default=0, help='prediction sequence length')
@@ -47,11 +47,11 @@ parser.add_argument('--pred_len', type=int, default=0, help='prediction sequence
 parser.add_argument('--e_layers', type=int, default=2, help='num of encoder layers')
 parser.add_argument('--d_layers', type=int, default=1, help='num of decoder layers')
 parser.add_argument('--factor', type=int, default=3, help='attn factor') # what is this?
-parser.add_argument('--enc_in', type=int, default=40, help='encoder input size') # dim of feature/ num of nodes
-parser.add_argument('--dec_in', type=int, default=40, help='decoder input size')
-parser.add_argument('--c_out', type=int, default=40, help='output size')
-parser.add_argument('--d_model', type=int, default=128, help='dimension of model') # 512
-parser.add_argument('--d_ff', type=int, default=256, help='dimension of fcn') # FC network, 2048
+parser.add_argument('--enc_in', type=int, default=228, help='encoder input size') # dim of feature/ num of nodes
+parser.add_argument('--dec_in', type=int, default=228, help='decoder input size')
+parser.add_argument('--c_out', type=int, default=228, help='output size')
+parser.add_argument('--d_model', type=int, default=64, help='dimension of model') # 512
+parser.add_argument('--d_ff', type=int, default=64, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') # 6
 parser.add_argument('--embed', type=str, default='timeF',
@@ -62,9 +62,9 @@ parser.add_argument('--output_attention', action='store_true',default=False, hel
 # diffusion
 parser.add_argument('--diff_schedule', type=str, default='quad', help='schedule for diffusion, options:[quad, linear]')
 parser.add_argument('--diff_steps', type=int, default=50, help='num of diffusion steps')
-parser.add_argument('--diff_samples', type=int, default=16, help='num of diffusion samples')
-parser.add_argument('--beta_start', type=float, default=0.0001, help='start beta for diffusion')
-parser.add_argument('--beta_end', type=float, default=0.2, help='end beta for diffusion')
+parser.add_argument('--diff_samples', type=int, default=32, help='num of diffusion samples')
+parser.add_argument('--beta_start', type=float, default=0.001, help='start beta for diffusion')
+parser.add_argument('--beta_end', type=float, default=0.05, help='end beta for diffusion')
 parser.add_argument('--sampling_shrink_interval', type=int, default=4, help='shrink interval for sampling')
 
 

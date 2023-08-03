@@ -107,7 +107,7 @@ class Model(nn.Module):
         self.projection = nn.Linear(configs.d_model * 2, configs.c_out, bias=True)
 
 
-    def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
+    def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None, target_mask=None):
         B,L,K = x_enc.shape
 
         t = torch.randint(0, self.configs.diff_steps, [B]).to(self.configs.gpu)
@@ -118,7 +118,7 @@ class Model(nn.Module):
         noisy_data = (current_alpha ** 0.5) * x_enc + ((1.0 - current_alpha) ** 0.5) * noise
 
         cond_obs = mask * x_enc
-        noisy_target = (1-mask) * noisy_data
+        noisy_target = target_mask * noisy_data
         
         # embedding # enc_out is of shape (B, L_hist, 2*d_model)
         # also embedding diffusion step t of shape ([B])
@@ -132,7 +132,7 @@ class Model(nn.Module):
 
         return dec_out
     
-    def evaluate_acc(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
+    def evaluate_acc(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None, target_mask=None):
         B,L,K = x_enc.shape
         imputed_samples = torch.zeros(B, self.configs.diff_samples, L, K).to(self.configs.gpu)
 
@@ -150,7 +150,7 @@ class Model(nn.Module):
                     break
                 
                 cond_obs = mask * x_enc
-                noisy_target = (1-mask) * sample
+                noisy_target = target_mask * sample
 
                 # embedding # enc_out is of shape (B, L_hist, 2*d_model)
                 enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu))
@@ -176,7 +176,7 @@ class Model(nn.Module):
 
         return imputed_samples
     
-    def evaluate(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
+    def evaluate(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None, target_mask=None):
         B,L,K = x_enc.shape
         imputed_samples = torch.zeros(B, self.configs.diff_samples, L, K).to(self.configs.gpu)
 
@@ -187,7 +187,7 @@ class Model(nn.Module):
             # initial diffusion step start from N-1
             for s in range(self.configs.diff_steps - 1, -1, -1):
                 cond_obs = mask * x_enc
-                noisy_target = (1-mask) * sample
+                noisy_target = target_mask * sample
 
                 # embedding # enc_out is of shape (B, L_hist, 2*d_model)
                 enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu))

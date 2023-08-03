@@ -172,15 +172,18 @@ class DataEmbedding(nn.Module):
 
     def forward(self, cond_obs, noisy_target, x_mark, diff_step):
         B, L_hist, K = cond_obs.shape
-        fea_pos = np.arange(10).repeat(int(K/10))
-        fea_pos = torch.from_numpy(np.expand_dims(fea_pos, axis=0).repeat(B, axis=0)).to(cond_obs.device)
-        # fea_pos is of shape (B, K)
-        # fea_embedding is a tensor of shape (B, K, d_model)
-        fea_embedding = fea_encoding(fea_pos, cond_obs.device, d_model=self.d_model)
-        # (B, K, d_model) -> (B, 1, K, d_model) -> (B, L_hist, K, d_model) -> (B, L_hist, d_model, K)
-        fea_embedding = fea_embedding.unsqueeze(1).expand([B, L_hist, K, self.d_model]).permute(0,1,3,2)
-        # (B, L_hist, d_model, K) -> (B, L_hist, d_model, 1) -> (B, L_hist, d_model)
-        fea_embedding = self.fea_reduce(fea_embedding).squeeze(-1)
+
+
+        # fea_pos = np.arange(10).repeat(int(K/10))
+        # fea_pos = torch.from_numpy(np.expand_dims(fea_pos, axis=0).repeat(B, axis=0)).to(cond_obs.device)
+        # # fea_pos is of shape (B, K)
+        # # fea_embedding is a tensor of shape (B, K, d_model)
+        # fea_embedding = fea_encoding(fea_pos, cond_obs.device, d_model=self.d_model)
+        # # (B, K, d_model) -> (B, 1, K, d_model) -> (B, L_hist, K, d_model) -> (B, L_hist, d_model, K)
+        # fea_embedding = fea_embedding.unsqueeze(1).expand([B, L_hist, K, self.d_model]).permute(0,1,3,2)
+        # # (B, L_hist, d_model, K) -> (B, L_hist, d_model, 1) -> (B, L_hist, d_model)
+        # fea_embedding = self.fea_reduce(fea_embedding).squeeze(-1)
+
 
         # (B,) -> (B, d_model) -> (B, 1, d_model), this will broadcasting to (B, L_hist, d_model)
         diff_step_embedding = self.diffusion_embedding(diff_step).unsqueeze(1)
@@ -194,11 +197,11 @@ class DataEmbedding(nn.Module):
             # self.value_embedding(x) is of shape (B, L_hist, d_model)
             # fea_embedding is of shape (B, L_hist, d_model)
             # self.position_embedding(x) is of shape (1, L_hist, d_model)
-            x_cond = self.cond_value_embedding(cond_obs) + cond_pos_embedding + fea_embedding + diff_step_embedding
-            x_noisy = self.noisy_value_embedding(noisy_target) + noisy_pos_embedding + fea_embedding + diff_step_embedding
+            x_cond = self.cond_value_embedding(cond_obs) + cond_pos_embedding + diff_step_embedding
+            x_noisy = self.noisy_value_embedding(noisy_target) + noisy_pos_embedding + diff_step_embedding
         else:
-            x_cond = self.cond_value_embedding(cond_obs) + tem_embedding + cond_pos_embedding + fea_embedding + diff_step_embedding
-            x_noisy = self.noisy_value_embedding(noisy_target) + tem_embedding + noisy_pos_embedding + fea_embedding + diff_step_embedding
+            x_cond = self.cond_value_embedding(cond_obs) + tem_embedding + cond_pos_embedding + diff_step_embedding
+            x_noisy = self.noisy_value_embedding(noisy_target) + tem_embedding + noisy_pos_embedding + diff_step_embedding
         
         # x is of shape (B, L_hist, 2*d_model)
         x = torch.cat([x_cond, x_noisy], dim=-1)

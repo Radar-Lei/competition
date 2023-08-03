@@ -9,7 +9,7 @@ import datetime
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', 
                  size=None,
-                 flow_data_path='ETTh1.csv', 
+                 flow_data_path='', 
                  speed_data_path='', 
                  scale=True, 
                  timeenc=0, 
@@ -51,20 +51,35 @@ class Dataset_Custom(Dataset):
     def __read_data__(self):
         if self.set_type != 3:
             self.scaler = StandardScaler()
-        df_flow_raw = pd.read_csv(os.path.join(self.root_path,
-                                          self.flow_data_path))
-        df_speed_raw = pd.read_csv(os.path.join(self.root_path, self.speed_data_path))
-        
-        if self.loader_type in ['multi','agg','agg_flow','agg_speed']:
-            df_raw = np.concatenate((df_flow_raw.values[:,1:], df_speed_raw.values[:,1:]),axis=1)
-            df_raw = np.concatenate((np.expand_dims(df_flow_raw['date'].values, axis=1), df_raw),axis=1)
-            df_raw = pd.DataFrame(df_raw)
-            df_raw.rename(columns={0:'date'}, inplace=True)
-        elif self.loader_type == 'flow':
-            df_raw = df_flow_raw
-        else: # self.loader_type == 'speed':
-            df_raw = df_speed_raw
-        
+
+        if (self.root_path == './dataset/competition/train-5min') or (self.root_path == './dataset/competition/test-5min'):
+            df_flow_raw = pd.read_csv(os.path.join(self.root_path,
+                                            self.flow_data_path))
+            df_speed_raw = pd.read_csv(os.path.join(self.root_path, self.speed_data_path))
+            
+            if self.loader_type in ['multi','agg','agg_flow','agg_speed']:
+                df_raw = np.concatenate((df_flow_raw.values[:,1:], df_speed_raw.values[:,1:]),axis=1)
+                df_raw = np.concatenate((np.expand_dims(df_flow_raw['date'].values, axis=1), df_raw),axis=1)
+                df_raw = pd.DataFrame(df_raw)
+                df_raw.rename(columns={0:'date'}, inplace=True)
+            elif self.loader_type == 'flow':
+                df_raw = df_flow_raw
+            else: # self.loader_type == 'speed':
+                df_raw = df_speed_raw
+
+            if self.set_type == 3:
+                self.num_day = 7
+            else:
+                self.num_day = 90            
+
+        elif self.root_path == './dataset/PeMS7_228':
+            df_raw = pd.read_csv(os.path.join(self.root_path, 'PeMSD7_V_228.csv'), header=None)
+            datetime_range = pd.date_range(start='2012-05-01', end='2012-06-30', freq='5min')
+            # Filter out the weekends
+            datetime_range = datetime_range[datetime_range.to_series().dt.weekday < 5]            
+            df_raw['date'] = datetime_range
+
+            self.num_day = 44 # only weekdays
         # df_raw[df_raw == 0] = np.nan
         # df_raw.fillna(method='ffill', inplace=True)
         # df_raw.fillna(method='bfill', inplace=True)
@@ -74,15 +89,8 @@ class Dataset_Custom(Dataset):
         cols = list(df_raw.columns)
         # cols.remove(cols[-1])
         cols.remove('date')
-        df_raw = df_raw[['date'] + cols]
 
-        if self.set_type == 3:
-            self.num_day = 7
-        else:
-            self.num_day = 90
-
-        cols_data = df_raw.columns[1:]
-        df_data = df_raw[cols_data]
+        df_data = df_raw[cols]
 
         if self.loader_type in ['agg','agg_flow','agg_speed']:
             df_data_flow = df_data.iloc[:, :40]
@@ -112,6 +120,8 @@ class Dataset_Custom(Dataset):
 
             # Generate a range of dates between start_date and end_date
             date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+            if self.root_path == './dataset/PeMS7_228':
+                date_range = date_range[date_range.to_series().dt.weekday < 5]
 
             # Randomly select dates for each dataset
             train_dates = np.random.choice(date_range, size=num_days_train, replace=False)
@@ -134,6 +144,10 @@ class Dataset_Custom(Dataset):
             df_train = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(train_dates)]
             df_vali = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(vali_dates)]
             df_test = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(test_dates)]
+
+            train_mask = np.where(df_train==0, 0, 1)
+            vali_mask = np.where(df_vali==0, 0, 1)
+            test_mask = np.where(df_test==0, 0, 1)
 
         if self.scale:
             if self.set_type != 3:
@@ -172,14 +186,17 @@ class Dataset_Custom(Dataset):
         if self.set_type == 0:
             self.data_x = train_data
             self.data_y = train_data
+            self.mask = train_mask
             self.curr_num_days = len(train_dates)
         elif self.set_type == 1:
             self.data_x = vali_data
             self.data_y = vali_data
+            self.mask = vali_mask
             self.curr_num_days = len(vali_dates)
         elif self.set_type == 2:
             self.data_x = test_data
             self.data_y = test_data
+            self.mask = test_mask
             self.curr_num_days = len(test_dates)
         else:
             self.data_x = pred_data
@@ -193,19 +210,16 @@ class Dataset_Custom(Dataset):
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
-        if self.set_type == 0: # when not pred
+        if self.set_type != 3: # when not pred
             s_begin = self.valid_indices[index]
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
-        elif (self.set_type == 1) or (self.set_type == 2):
-            # further skip some samples
-            s_begin = 5*12 + index * self.L_d
-            s_end = s_begin + self.seq_len
-            r_begin = s_end - self.label_len
-            r_end = r_begin + self.label_len + self.pred_len
         elif self.set_type == 3:
-            s_begin = index * (self.seq_len + self.pred_len)
+            if self.task_name == 'imputation':
+                s_begin = index * self.seq_len
+            else:
+                s_begin = index * (self.seq_len + self.pred_len)
 
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
@@ -216,13 +230,14 @@ class Dataset_Custom(Dataset):
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
-        return seq_x, seq_y, seq_x_mark, seq_y_mark
+        if self.set_type != 3:
+            return seq_x, seq_y, seq_x_mark, seq_y_mark, self.mask[s_begin:s_end], self.mask[r_begin:r_end]
+        else:
+            return seq_x, seq_y, seq_x_mark, seq_y_mark, 0, 0
 
     def __len__(self):
-        if self.set_type == 0:
+        if self.set_type != 3:
             return len(self.valid_indices)
-        elif (self.set_type == 1) or (self.set_type == 2):
-            return self.curr_num_days
         else: # self.set_type == 3: # pred
             return int(len(self.data_x) / (self.seq_len + self.pred_len))
 
@@ -237,7 +252,7 @@ def data_provider(args, flag, scaler=None):
     Data = Dataset_Custom
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if (flag != 'train'):
+    if (flag == 'pred'):
         shuffle_flag = False
         drop_last = True
         
@@ -268,6 +283,10 @@ def data_provider(args, flag, scaler=None):
         data_shrink=args.data_shrink,
     )
     print(flag, len(data_set))
+    
+    if (flag == 'val') or (flag == 'test'):
+        batch_size = len(data_set)
+
     data_loader = DataLoader(
         data_set,
         batch_size=batch_size,
