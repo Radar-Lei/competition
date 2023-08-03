@@ -50,7 +50,7 @@ parser.add_argument('--factor', type=int, default=3, help='attn factor') # what 
 parser.add_argument('--enc_in', type=int, default=228, help='encoder input size') # dim of feature/ num of nodes
 parser.add_argument('--dec_in', type=int, default=228, help='decoder input size')
 parser.add_argument('--c_out', type=int, default=228, help='output size')
-parser.add_argument('--d_model', type=int, default=64, help='dimension of model') # 512
+parser.add_argument('--d_model', type=int, default=32, help='dimension of model') # 512
 parser.add_argument('--d_ff', type=int, default=64, help='dimension of fcn') # FC network, 2048
 parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') # 6
@@ -61,10 +61,10 @@ parser.add_argument('--output_attention', action='store_true',default=False, hel
 
 # diffusion
 parser.add_argument('--diff_schedule', type=str, default='quad', help='schedule for diffusion, options:[quad, linear]')
-parser.add_argument('--diff_steps', type=int, default=50, help='num of diffusion steps')
+parser.add_argument('--diff_steps', type=int, default=100, help='num of diffusion steps')
 parser.add_argument('--diff_samples', type=int, default=16, help='num of diffusion samples')
-parser.add_argument('--beta_start', type=float, default=0.001, help='start beta for diffusion')
-parser.add_argument('--beta_end', type=float, default=0.05, help='end beta for diffusion')
+parser.add_argument('--beta_start', type=float, default=0.0005, help='start beta for diffusion, 0.0001')
+parser.add_argument('--beta_end', type=float, default=0.2, help='end beta for diffusion, 0.1, 0.2, 0.3, 0.4')
 parser.add_argument('--sampling_shrink_interval', type=int, default=4, help='shrink interval for sampling')
 
 

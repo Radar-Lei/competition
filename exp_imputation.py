@@ -226,12 +226,13 @@ class Exp_Imputation(Exp_Basic):
                 target_mask = actual_mask - mask # before actual_mask * mask
                 mask = actual_mask * mask
                 
-                outputs = self.model(batch_x, batch_x_mark, None, None, mask, target_mask)
+                # remember that in the forward process, we compute the loss between the predicted noise nad the actual noise
+                outputs, curr_noise = self.model(batch_x, batch_x_mark, None, None, mask, target_mask)
 
                 f_dim = 0
                 # outputs is of shape (B, L_hist, K)
                 outputs = outputs[:, :, f_dim:]
-                loss = criterion(outputs[target_mask == 1], batch_x[target_mask == 1])
+                loss = criterion(outputs[target_mask == 1], curr_noise[target_mask == 1])
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -249,7 +250,7 @@ class Exp_Imputation(Exp_Basic):
             curr_epoch_time = time.time()
             print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % 30 == 0:
                 # epoch 
                 vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, epoch+1, setting)
                 test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, epoch+1)

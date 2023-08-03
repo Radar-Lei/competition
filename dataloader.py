@@ -107,8 +107,8 @@ class Dataset_Custom(Dataset):
         else:
             df_data = df_data.values
         
-        num_days_train = int(self.num_day * 0.9)
-        num_days_test = int(self.num_day * 0.05)
+        num_days_train = int(self.num_day * 0.95)
+        num_days_test = int(self.num_day * 0.03)
         num_days_vali = self.num_day - num_days_train - num_days_test
 
         df_data = pd.DataFrame(df_data,index=pd.DatetimeIndex(df_raw['date'].values))
@@ -283,9 +283,6 @@ def data_provider(args, flag, scaler=None):
         data_shrink=args.data_shrink,
     )
     print(flag, len(data_set))
-    
-    if (flag == 'val') or (flag == 'test'):
-        batch_size = len(data_set)
 
     data_loader = DataLoader(
         data_set,

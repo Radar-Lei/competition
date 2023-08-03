@@ -130,7 +130,7 @@ class Model(nn.Module):
         # dec_out is of shape (B, L_pred, K)
         dec_out = self.projection(enc_out)
 
-        return dec_out
+        return dec_out, noise
     
     def evaluate_acc(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None, target_mask=None):
         B,L,K = x_enc.shape
