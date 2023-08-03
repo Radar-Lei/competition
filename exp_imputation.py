@@ -5,13 +5,16 @@ import torch.nn as nn
 from dataloader import data_provider
 from torch import optim
 import numpy as np
-from utils import metric, visual, EarlyStopping, plot_subplots
+from utils import metric, visual, EarlyStopping, plot_subplots, daily_plot_subplots
 import time
 import pandas as pd
+import pickle
 
 class Exp_Imputation(Exp_Basic):
     def __init__(self, args):
         super(Exp_Imputation, self).__init__(args)
+        if self.args.root_path == './dataset/PeMS7_228':
+            self.L_d = 288
 
     def _build_model(self):
         model = self.model_dict[self.args.model].Model(self.args).float()
@@ -31,6 +34,25 @@ class Exp_Imputation(Exp_Basic):
     def _select_criterion(self):
         criterion = nn.MSELoss()
         return criterion
+    
+    def _sm_mask_generator(self, actual_mask, reserve_indices, missing_rate):
+        """
+        generate the missing mask for SM missing pattern,
+        should follow the same strategy as dataloader to 
+        select cols to be structurally missing, but without
+        fixed random seed for training set diversity.
+
+        return: (B,L,K) as the cond_mask in model training
+        """
+        # actual_mask: (B,L,K)
+        copy_mask = actual_mask.clone()
+        _, dim_K, _ = copy_mask.shape
+        available_features = [i for i in range(dim_K) if i not in reserve_indices]
+        # every time randomly
+        selected_features = np.random.choice(available_features, round(len(available_features) * missing_rate), replace=False)
+        copy_mask[:, :, selected_features] = 0
+
+        return copy_mask
     
     def _quantile_loss(self, target, forecast, q: float, eval_points) -> float:
         return 2 * np.sum(
@@ -63,7 +85,7 @@ class Exp_Imputation(Exp_Basic):
             quantiles_imp.append(self._get_quantile(samples, q, axis=1)*(1-all_given_np) + all_target_np * all_given_np)
         return quantiles_imp
     
-    def vali(self, vali_data, vali_loader, epoch, setting=None):
+    def vali(self, vali_data, vali_loader, reserve_indices, epoch, setting=None):
         all_outputs = []
         all_targets = []
         all_medians = []
@@ -71,10 +93,10 @@ class Exp_Imputation(Exp_Basic):
         all_obs_masks = []
 
         self.model.eval()
-
-        _, K = vali_data[0][0].shape
-        mask = self.create_fixed_mask(K)
-        mask = torch.from_numpy(np.repeat(mask[np.newaxis, :, :], vali_loader.batch_size, axis=0))
+        if self.args.missing_pattern == 'fixed':
+            _, K = vali_data[0][0].shape
+            mask = self.create_fixed_mask(K)
+            mask = torch.from_numpy(np.repeat(mask[np.newaxis, :, :], vali_loader.batch_size, axis=0))
 
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask, _) in enumerate(vali_loader):
@@ -83,14 +105,17 @@ class Exp_Imputation(Exp_Basic):
 
                 # random mask
                 B, L, K = batch_x.shape
-                """
-                B = batch size
-                T = seq len
-                N = number of features
-                """
-                # mask = torch.rand((B, T, N)).to(self.device)
-                # mask[mask <= self.args.mask_rate] = 0  # masked
-                # mask[mask > self.args.mask_rate] = 1  # remained
+
+                if self.args.missing_pattern == 'rm':
+                    # random mask
+                    mask = torch.rand((B, L, K))
+                    mask[mask <= self.args.missing_rate] = 0  # masked
+                    mask[mask > self.args.missing_rate] = 1  # remained
+                elif self.args.missing_pattern == 'sm':
+                    # randomly structurally missing
+                    mask = actual_mask.clone()
+                    mask[:,:,reserve_indices] = 0
+
                 mask = mask.to(self.device)
                 # mask for the NaN values in the original data
                 actual_mask = actual_mask.to(self.device)
@@ -136,6 +161,7 @@ class Exp_Imputation(Exp_Basic):
             all_masks = all_masks[0]
             all_outputs = all_outputs[0]
             all_obs_masks = all_obs_masks[0]
+
         _, _, rmse, mape, _ = metric(all_medians[all_masks == 1], all_targets[all_masks == 1])
         CRPS = self._calc_quantile_CRPS(all_targets, all_outputs, all_masks)
 
@@ -147,10 +173,13 @@ class Exp_Imputation(Exp_Basic):
         
         # starting visualization
         quantiles_imp = self._quantile(all_outputs, all_targets, all_obs_masks)
-        # by default, num_subplots = K, but we can change it to plot less subplots
-        num_subplots = min(K, 60)
+        #
+        all_zero_cols = set(np.all(all_masks == 0, axis=1).nonzero()[1])
+        available_cols = set(np.arange(K)) - all_zero_cols
+        num_subplots = min(len(available_cols), 12)
+        available_cols = list(available_cols)[:num_subplots]
 
-        dataind = 0
+        dataind = int(self.L_d / L)
 
         ncols = 3
         nrows = (num_subplots + ncols - 1) // ncols
@@ -158,10 +187,22 @@ class Exp_Imputation(Exp_Basic):
         folder_path = './vali_results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
+
+        with open(folder_path + "generated_" + str(n_samples) + 'samples_epoch' + str(epoch), 'wb') as f:
+            pickle.dump(
+                [
+                    available_cols,
+                    quantiles_imp,
+                    all_targets,
+                    all_masks,
+                    all_obs_masks,
+                ],
+                f,
+            )
         
-        plot_subplots(nrows, 
+        daily_plot_subplots(nrows, 
                     ncols, 
-                    num_subplots, 
+                    available_cols, 
                     L, dataind, 
                     quantiles_imp, 
                     all_targets, 
@@ -179,10 +220,16 @@ class Exp_Imputation(Exp_Basic):
         vali_data, vali_loader = self._get_data(flag='val')
         test_data, test_loader = self._get_data(flag='test')
 
-        _, K = train_data[0][0].shape
-        mask = self.create_fixed_mask(K)
-        # 1 for valid values, 0 for missing values
-        mask = torch.from_numpy(np.repeat(mask[np.newaxis, :, :], train_loader.batch_size, axis=0)).to(self.device)
+        if self.args.missing_pattern == 'fixed':
+            _, K = train_data[0][0].shape
+            mask = self.create_fixed_mask(K)
+            # 1 for valid values, 0 for missing values
+            mask = torch.from_numpy(np.repeat(mask[np.newaxis, :, :], train_loader.batch_size, axis=0)).to(self.device)
+            reserve_indices = None
+        elif self.args.missing_pattern == 'sm':
+            _, K = train_data[0][0].shape
+            np.random.seed(self.args.fixed_seed)
+            reserve_indices = np.random.choice(range(K), round(K * self.args.missing_rate), replace=False)
 
         path = os.path.join(self.args.checkpoints, setting)
         if not os.path.exists(path):
@@ -216,12 +263,18 @@ class Exp_Imputation(Exp_Basic):
                 batch_x = batch_x.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
-                # random mask
-                # B, L_hist, K = batch_x.shape
-                # mask = torch.rand((B, T, N)).to(self.device)
-                # mask[mask <= self.args.mask_rate] = 0  # masked
-                # mask[mask > self.args.mask_rate] = 1  # remained
+                if self.args.missing_pattern == 'rm':
+                    # random mask
+                    B, L, K = batch_x.shape
+                    mask = torch.rand((B, L, K))
+                    mask[mask <= self.args.missing_rate] = 0  # masked
+                    mask[mask > self.args.missing_rate] = 1  # remained
+                elif self.args.missing_pattern == 'sm':
+                    # randomly structurally missing
+                    actual_mask[:,:,reserve_indices] = 0
+                    mask = self._sm_mask_generator(actual_mask, reserve_indices, self.args.missing_rate)
 
+                mask = mask.to(self.device)
                 actual_mask = actual_mask.to(self.device)
                 target_mask = actual_mask - mask # before actual_mask * mask
                 mask = actual_mask * mask
@@ -250,13 +303,13 @@ class Exp_Imputation(Exp_Basic):
             curr_epoch_time = time.time()
             print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
-            if (epoch + 1) % 30 == 0:
+            if (epoch + 1) % 5 == 0:
                 # epoch 
-                vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, epoch+1, setting)
-                test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, epoch+1)
+                vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, reserve_indices, epoch+1, setting)
+                test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, reserve_indices, epoch+1)
 
-                print("Epoch: {0}, eval cost time: {1:.2f}, Steps: {2} | Train Loss: {3:.7f} Vali RMES: {4:.2f} Test RMSE: {5:.2f}".format(
-                    epoch + 1, time.time()-curr_epoch_time, train_steps, train_loss, vali_rmse, test_rmse))
+                print("Epoch: {0}, eval cost time: {1:.2f} | Vali RMES: {2:.2f} MAPE: {3:.2f} CRPS: {4:.2f} | Test RMSE: {5:.2f} MAPE: {6:.2f} CRPS: {7:.2f} ".format(
+                    epoch + 1, time.time()-curr_epoch_time, vali_rmse, vali_mape, vali_crps, test_rmse, test_mape, test_crps))
                 early_stopping(vali_rmse, self.model, path)
                 if early_stopping.early_stop:
                     print("Early stopping")

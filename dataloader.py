@@ -210,8 +210,13 @@ class Dataset_Custom(Dataset):
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
-        if self.set_type != 3: # when not pred
+        if self.set_type == 0: # when not pred
             s_begin = self.valid_indices[index]
+            s_end = s_begin + self.seq_len
+            r_begin = s_end - self.label_len
+            r_end = r_begin + self.label_len + self.pred_len
+        elif (self.set_type == 1) or (self.set_type == 2):
+            s_begin = index * (self.seq_len + self.pred_len)
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -236,7 +241,7 @@ class Dataset_Custom(Dataset):
             return seq_x, seq_y, seq_x_mark, seq_y_mark, 0, 0
 
     def __len__(self):
-        if self.set_type != 3:
+        if self.set_type == 0:
             return len(self.valid_indices)
         else: # self.set_type == 3: # pred
             return int(len(self.data_x) / (self.seq_len + self.pred_len))
@@ -283,6 +288,11 @@ def data_provider(args, flag, scaler=None):
         data_shrink=args.data_shrink,
     )
     print(flag, len(data_set))
+    
+    if flag == 'val' or flag == 'test':
+        shuffle_flag = False
+        if len(data_set) < batch_size:
+            batch_size = len(data_set)
 
     data_loader = DataLoader(
         data_set,
