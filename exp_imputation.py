@@ -13,7 +13,7 @@ import pickle
 class Exp_Imputation(Exp_Basic):
     def __init__(self, args):
         super(Exp_Imputation, self).__init__(args)
-        if self.args.root_path == './dataset/PeMS7_228':
+        if self.args.root_path in ['./dataset/PeMS7_228', './dataset/competition/train-5min']:
             self.L_d = 288
 
     def _build_model(self):
@@ -200,17 +200,30 @@ class Exp_Imputation(Exp_Basic):
                 f,
             )
         
-        daily_plot_subplots(nrows, 
-                    ncols, 
-                    available_cols, 
-                    L, dataind, 
-                    quantiles_imp, 
-                    all_targets, 
-                    all_masks, 
-                    all_obs_masks, 
-                    folder_path, 
-                    epoch
-                    )
+        if dataind > 1:
+            daily_plot_subplots(nrows, 
+                        ncols, 
+                        available_cols, 
+                        L, dataind, 
+                        quantiles_imp, 
+                        all_targets, 
+                        all_masks, 
+                        all_obs_masks, 
+                        folder_path, 
+                        epoch
+                        )
+        else:
+            plot_subplots(nrows, 
+                        ncols, 
+                        available_cols, 
+                        L, dataind, 
+                        quantiles_imp, 
+                        all_targets, 
+                        all_masks, 
+                        all_obs_masks, 
+                        folder_path, 
+                        epoch
+                        )            
 
         self.model.train()
         return rmse, mape, CRPS
@@ -277,6 +290,7 @@ class Exp_Imputation(Exp_Basic):
                 mask = mask.to(self.device)
                 actual_mask = actual_mask.to(self.device)
                 target_mask = actual_mask - mask # before actual_mask * mask
+                target_mask[target_mask <0] = 0
                 mask = actual_mask * mask
                 
                 # remember that in the forward process, we compute the loss between the predicted noise nad the actual noise
@@ -308,7 +322,7 @@ class Exp_Imputation(Exp_Basic):
                 vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, reserve_indices, epoch+1, setting)
                 test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, reserve_indices, epoch+1)
 
-                print("Epoch: {0}, eval cost time: {1:.2f} | Vali RMES: {2:.2f} MAPE: {3:.2f} CRPS: {4:.2f} | Test RMSE: {5:.2f} MAPE: {6:.2f} CRPS: {7:.2f} ".format(
+                print("Epoch: {0}, eval cost time: {1:.2f} Train Loss: {2:.2f}| Vali RMES: {3:.2f} MAPE: {4:.2f} CRPS: {5:.2f} | Test RMSE: {6:.2f} MAPE: {7:.2f} CRPS: {8:.2f} ".format(
                     epoch + 1, time.time()-curr_epoch_time, vali_rmse, vali_mape, vali_crps, test_rmse, test_mape, test_crps))
                 early_stopping(vali_rmse, self.model, path)
                 if early_stopping.early_stop:

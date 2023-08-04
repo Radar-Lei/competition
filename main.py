@@ -28,7 +28,7 @@ parser.add_argument('--model', type=str, default='DiffusionBase',
                         help='model name, options: [DiffusionBase, TimesNet]')
 
 # data loader
-parser.add_argument('--root_path', type=str, default='./dataset/PeMS7_228', help='root path of the data file') # competition
+parser.add_argument('--root_path', type=str, default='./dataset/PeMS7_228', help='root path of the data file') # ./dataset/competition/train-5min ./dataset/PeMS7_228
 parser.add_argument('--pred_root_path', type=str, default='./dataset/competition/test-5min', help='root path of the test data file') # competition
 parser.add_argument('--flow_data_path', type=str, default='flow-5min.csv', help='data file') # flow.csv
 parser.add_argument('--speed_data_path', type=str, default='speed-5min.csv', help='data file') # speed.csv
@@ -43,7 +43,7 @@ parser.add_argument('--seq_len', type=int, default=36, help='input sequence leng
 parser.add_argument('--label_len', type=int, default=0, help='start token length')
 parser.add_argument('--pred_len', type=int, default=0, help='prediction sequence length')
 parser.add_argument('--missing_pattern', type=str, default='sm', 
-                    help='missing pattern, options:[rm:randomly, rsm:random structurally missing, sbm:structurally block missing]')
+                    help='missing pattern, options:[rm:randomly, sm:random structurally missing, sbm:structurally block missing]')
 parser.add_argument('--missing_rate', type=float, default=0.3, help='missing rate')
 parser.add_argument('--fixed_seed', type=int, default=20)
 
@@ -68,7 +68,7 @@ parser.add_argument('--diff_schedule', type=str, default='quad', help='schedule 
 parser.add_argument('--diff_steps', type=int, default=100, help='num of diffusion steps')
 parser.add_argument('--diff_samples', type=int, default=16, help='num of diffusion samples')
 parser.add_argument('--beta_start', type=float, default=0.0001, help='start beta for diffusion, 0.0001')
-parser.add_argument('--beta_end', type=float, default=0.2, help='end beta for diffusion, 0.1, 0.2, 0.3, 0.4')
+parser.add_argument('--beta_end', type=float, default=0.02, help='end beta for diffusion, 0.1, 0.2, 0.3, 0.4')
 parser.add_argument('--sampling_shrink_interval', type=int, default=4, help='shrink interval for sampling')
 
 

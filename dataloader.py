@@ -17,7 +17,8 @@ class Dataset_Custom(Dataset):
                  scaler=None, 
                  loader_type='agg',
                  task_name = 'imputation',
-                 data_shrink = 1):
+                 data_shrink = 1,
+                 missing_pattern = 'sm'):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -33,8 +34,10 @@ class Dataset_Custom(Dataset):
         type_map = {'train': 0, 'val': 1, 'test': 2, 'pred': 3}
         self.set_type = type_map[flag]
 
-        self.L_d = 288
+        if root_path in ['./dataset/PeMS7_228','./dataset/competition/train-5min', './dataset/competition/test-5min']:
+            self.L_d = 288
 
+        self.missing_pattern = missing_pattern
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
@@ -52,7 +55,7 @@ class Dataset_Custom(Dataset):
         if self.set_type != 3:
             self.scaler = StandardScaler()
 
-        if (self.root_path == './dataset/competition/train-5min') or (self.root_path == './dataset/competition/test-5min'):
+        if self.root_path in ['./dataset/competition/train-5min','./dataset/competition/test-5min']:
             df_flow_raw = pd.read_csv(os.path.join(self.root_path,
                                             self.flow_data_path))
             df_speed_raw = pd.read_csv(os.path.join(self.root_path, self.speed_data_path))
@@ -107,6 +110,7 @@ class Dataset_Custom(Dataset):
         else:
             df_data = df_data.values
         
+
         num_days_train = int(self.num_day * 0.95)
         num_days_test = int(self.num_day * 0.03)
         num_days_vali = self.num_day - num_days_train - num_days_test
@@ -123,22 +127,42 @@ class Dataset_Custom(Dataset):
             if self.root_path == './dataset/PeMS7_228':
                 date_range = date_range[date_range.to_series().dt.weekday < 5]
 
-            # Randomly select dates for each dataset
-            train_dates = np.random.choice(date_range, size=num_days_train, replace=False)
-            train_dates = train_dates.astype('datetime64[D]')
-            train_dates = train_dates.astype(datetime.datetime)
-
-            vali_dates = np.random.choice(date_range[~np.isin(date_range, train_dates)], size=num_days_vali, replace=False)
-            vali_dates = vali_dates.astype('datetime64[D]')
-            vali_dates = vali_dates.astype(datetime.datetime)
-
-            test_dates = np.random.choice(date_range[~np.isin(date_range, 
-                                                            np.concatenate([train_dates, vali_dates]))], 
-                                                            size=num_days_test, 
-                                                            replace=False)
-            test_dates = test_dates.astype('datetime64[D]')
-            test_dates = test_dates.astype(datetime.datetime)
-
+            # structurally missing can use all dates for training
+            if self.missing_pattern in ['sm']:
+                train_dates = np.random.choice(
+                    date_range, 
+                    size=self.num_day, 
+                    replace=False
+                    ).astype('datetime64[D]').astype(datetime.datetime)
+                
+                vali_dates = np.random.choice(
+                    date_range, 
+                    size=num_days_vali, 
+                    replace=False
+                    ).astype('datetime64[D]').astype(datetime.datetime)
+                
+                test_dates = np.random.choice(date_range, 
+                                            size=num_days_test, 
+                                            replace=False
+                                            ).astype('datetime64[D]').astype(datetime.datetime)
+            else: # non-structurally missing cannot use all dates for training
+                train_dates = np.random.choice(
+                    date_range, 
+                    size=num_days_train, 
+                    replace=False
+                    ).astype('datetime64[D]').astype(datetime.datetime)
+                
+                vali_dates = np.random.choice(
+                    date_range[~np.isin(date_range, train_dates)], 
+                    size=num_days_vali, 
+                    replace=False
+                    ).astype('datetime64[D]').astype(datetime.datetime)
+                
+                test_dates = np.random.choice(
+                    date_range[~np.isin(date_range, np.concatenate([train_dates, vali_dates]))], 
+                    size=num_days_test, 
+                    replace=False
+                    ).astype('datetime64[D]').astype(datetime.datetime)
 
             # Filter df_data based on the selected dates
             df_train = df_data[pd.Series(df_data.index.date, index=df_data.index).isin(train_dates)]
@@ -216,7 +240,10 @@ class Dataset_Custom(Dataset):
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
         elif (self.set_type == 1) or (self.set_type == 2):
-            s_begin = index * (self.seq_len + self.pred_len)
+            if self.missing_pattern == 'sm':
+                s_begin = index * (self.seq_len + self.pred_len)
+            else:
+                s_begin = self.valid_indices[index]
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
@@ -286,6 +313,7 @@ def data_provider(args, flag, scaler=None):
         loader_type=args.dataloader_type,
         task_name = args.task_name,
         data_shrink=args.data_shrink,
+        missing_pattern=args.missing_pattern,
     )
     print(flag, len(data_set))
     
