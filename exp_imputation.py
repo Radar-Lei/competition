@@ -46,7 +46,7 @@ class Exp_Imputation(Exp_Basic):
         """
         # actual_mask: (B,L,K)
         copy_mask = actual_mask.clone()
-        _, dim_K, _ = copy_mask.shape
+        _, _, dim_K = copy_mask.shape
         available_features = [i for i in range(dim_K) if i not in reserve_indices]
         # every time randomly
         selected_features = np.random.choice(available_features, round(len(available_features) * missing_rate), replace=False)
@@ -272,7 +272,6 @@ class Exp_Imputation(Exp_Basic):
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, actual_mask, _) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
-
                 batch_x = batch_x.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
@@ -323,7 +322,7 @@ class Exp_Imputation(Exp_Basic):
                 test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, reserve_indices, epoch+1)
 
                 print("Epoch: {0}, eval cost time: {1:.2f} Train Loss: {2:.2f}| Vali RMES: {3:.2f} MAPE: {4:.2f} CRPS: {5:.2f} | Test RMSE: {6:.2f} MAPE: {7:.2f} CRPS: {8:.2f} ".format(
-                    epoch + 1, time.time()-curr_epoch_time, vali_rmse, vali_mape, vali_crps, test_rmse, test_mape, test_crps))
+                    epoch + 1, time.time()-curr_epoch_time, train_loss, vali_rmse, vali_mape, vali_crps, test_rmse, test_mape, test_crps))
                 early_stopping(vali_rmse, self.model, path)
                 if early_stopping.early_stop:
                     print("Early stopping")
