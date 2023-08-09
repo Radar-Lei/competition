@@ -11,7 +11,7 @@ python -u main.py \
     --speed_data_path speed-5min.csv \
     --dataloader_type flow \
     --freq t \
-    --data_shrink 3 \
+    --data_shrink 2 \
     \
     --seq_len 36 \
     --label_len 0 \
@@ -23,7 +23,7 @@ python -u main.py \
     --diff_steps 100 \
     --diff_samples 32 \
     --beta_start 0.0001 \
-    --beta_end 0.02 \
+    --beta_end 0.01 \
     --sampling_shrink_interval 4 \
     \
     --e_layers 2\

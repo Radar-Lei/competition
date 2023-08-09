@@ -7,3 +7,4 @@ train_results/
 vali_results/
 result_imputaiton.txt
 dataset/Seattle/
+*.svg
