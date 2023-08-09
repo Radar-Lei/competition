@@ -153,7 +153,7 @@ class Model(nn.Module):
                 noisy_target = target_mask * sample
 
                 # embedding # enc_out is of shape (B, L_hist, 2*d_model)
-                enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu))
+                enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu), mask)
 
                 for j in range(self.layer):
                     enc_out = self.layer_norm(self.model[j](enc_out))

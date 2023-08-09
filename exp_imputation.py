@@ -127,9 +127,9 @@ class Exp_Imputation(Exp_Basic):
                     mask = actual_mask.clone()
                     mask[:,:,reserve_indices] = 0
 
-                mask = mask.to(self.device)
+                mask = mask.float().to(self.device)
                 # mask for the NaN values in the original data
-                actual_mask = actual_mask.to(self.device)
+                actual_mask = actual_mask.float().to(self.device)
                 mask = actual_mask * mask 
                 target_mask = actual_mask - mask
 
@@ -305,8 +305,8 @@ class Exp_Imputation(Exp_Basic):
                     actual_mask[:,:,reserve_indices] = 0
                     mask = self._sm_mask_generator(actual_mask, reserve_indices, self.args.missing_rate)
 
-                mask = mask.to(self.device)
-                actual_mask = actual_mask.to(self.device)
+                mask = mask.float().to(self.device)
+                actual_mask = actual_mask.float().to(self.device)
                 mask = actual_mask * mask
                 target_mask = actual_mask - mask
                 
@@ -334,7 +334,7 @@ class Exp_Imputation(Exp_Basic):
             curr_epoch_time = time.time()
             print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
-            if (epoch + 1) % self.args.epoch_to_vis == 0:
+            if ((epoch + 1) % self.args.epoch_to_vis == 0) or (epoch == 0) :
                 # epoch 
                 vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, reserve_indices, epoch+1, setting)
                 test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, reserve_indices, epoch+1)

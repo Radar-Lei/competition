@@ -16,7 +16,7 @@ python -u main.py \
     --seq_len 36 \
     --label_len 0 \
     --pred_len 0 \
-    --missing_pattern rm \
+    --missing_pattern bm \
     --missing_rate 0.3 \
     \
     --diff_schedule quad \
