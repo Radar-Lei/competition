@@ -122,7 +122,7 @@ class Model(nn.Module):
         
         # embedding # enc_out is of shape (B, L_hist, 2*d_model)
         # also embedding diffusion step t of shape ([B])
-        enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, t)
+        enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, t, mask)
 
         for i in range(self.layer):
             enc_out = self.layer_norm(self.model[i](enc_out))
@@ -190,7 +190,7 @@ class Model(nn.Module):
                 noisy_target = target_mask * sample
 
                 # embedding # enc_out is of shape (B, L_hist, 2*d_model)
-                enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu))
+                enc_out = self.enc_embedding(cond_obs, noisy_target, x_mark_enc, torch.tensor([s]).to(self.configs.gpu), mask)
 
                 for j in range(self.layer):
                     enc_out = self.layer_norm(self.model[j](enc_out))

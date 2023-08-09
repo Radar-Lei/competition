@@ -30,8 +30,8 @@ python -u main.py \
     --enc_in 228\
     --dec_in 228\
     --c_out 228\
-    --d_model 128 \
-    --d_ff 256 \
+    --d_model 256 \
+    --d_ff 512 \
     --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
@@ -41,4 +41,6 @@ python -u main.py \
     --patience 30 \
     --learning_rate 0.0005\
     \
-    --gpu 1 \
+    --gpu 0 \
+    \
+    --epoch_to_vis 15\

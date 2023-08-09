@@ -28,8 +28,8 @@ class Exp_Imputation(Exp_Basic):
         return data_set, data_loader
 
     def _select_optimizer(self):
-        # Adadelta, Adagrad, RMSprop
-        model_optim = optim.Adadelta(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5)
+        # Adadelta, Adagrad, RMSprop, Adam, AdamW, NADAM, RAdam, SGD
+        model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5)
         return model_optim
 
     def _select_criterion(self):
@@ -111,8 +111,17 @@ class Exp_Imputation(Exp_Basic):
                     # random mask
                     np.random.seed(self.args.fixed_seed)
                     mask = torch.rand((B, L, K))
-                    mask[mask <= self.args.missing_rate] = 0  # masked
-                    mask[mask > self.args.missing_rate] = 1  # remained
+                    mask = np.round(mask + 0.5 - self.args.missing_rate)
+                elif self.args.missing_pattern == 'bm':
+                    # block mask
+                    B, L, K = batch_x.shape
+                    np.random.seed(self.args.fixed_seed)
+                    mask = np.random.rand(int(B*L*K / self.args.window_size))
+                    temp = np.array([mask] * self.args.window_size)
+                    mask = temp.reshape([L,B,K], order='F').transpose([1,0,2])
+                    mask = np.round(mask + 0.5 - self.args.missing_rate)
+                    mask = torch.from_numpy(mask)
+                   
                 elif self.args.missing_pattern == 'sm':
                     # randomly structurally missing
                     mask = actual_mask.clone()
@@ -279,9 +288,18 @@ class Exp_Imputation(Exp_Basic):
                     # random mask
                     B, L, K = batch_x.shape
                     mask = torch.rand((B, L, K))
-                    mask[mask <= self.args.missing_rate] = 0  # masked
-                    mask[mask > self.args.missing_rate] = 1  # remained
+                    mask = np.round(mask + 0.5 - self.args.missing_rate)
                     reserve_indices = None
+                elif self.args.missing_pattern == 'bm':
+                    # block mask
+                    B, L, K = batch_x.shape
+                    mask = np.random.rand(int(B*L*K / self.args.window_size))
+                    temp = np.array([mask] * self.args.window_size)
+                    mask = temp.reshape([L,B,K], order='F').transpose([1,0,2])
+                    mask = np.round(mask + 0.5 - self.args.missing_rate)
+                    mask = torch.from_numpy(mask)
+                    reserve_indices = None
+
                 elif self.args.missing_pattern == 'sm':
                     # randomly structurally missing
                     actual_mask[:,:,reserve_indices] = 0
@@ -316,7 +334,7 @@ class Exp_Imputation(Exp_Basic):
             curr_epoch_time = time.time()
             print("Epoch: {} training cost time: {}".format(epoch + 1, curr_epoch_time - epoch_time))
             train_loss = np.average(train_loss)
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % self.args.epoch_to_vis == 0:
                 # epoch 
                 vali_rmse, vali_mape, vali_crps = self.vali(vali_data, vali_loader, reserve_indices, epoch+1, setting)
                 test_rmse, test_mape, test_crps = self.vali(test_data, test_loader, reserve_indices, epoch+1)

@@ -42,9 +42,10 @@ parser.add_argument('--data_shrink', type=int, default=1, help='reduce the numbd
 parser.add_argument('--seq_len', type=int, default=36, help='input sequence length')
 parser.add_argument('--label_len', type=int, default=0, help='start token length')
 parser.add_argument('--pred_len', type=int, default=0, help='prediction sequence length')
-parser.add_argument('--missing_pattern', type=str, default='rm', 
-                    help='missing pattern, options:[rm:randomly, sm:random structurally missing, sbm:structurally block missing]')
+parser.add_argument('--missing_pattern', type=str, default='bm', 
+                    help='missing pattern, options:[rm:randomly, sm:random structurally missing, bm: block missing]')
 parser.add_argument('--missing_rate', type=float, default=0.3, help='missing rate')
+parser.add_argument('--window_size', type=int, default=6, help='window length for block missing')
 parser.add_argument('--fixed_seed', type=int, default=20)
 
 # diffusion
@@ -62,8 +63,8 @@ parser.add_argument('--d_layers', type=int, default=1, help='num of decoder laye
 parser.add_argument('--enc_in', type=int, default=228, help='encoder input size') # dim of feature/ num of nodes
 parser.add_argument('--dec_in', type=int, default=228, help='decoder input size')
 parser.add_argument('--c_out', type=int, default=228, help='output size')
-parser.add_argument('--d_model', type=int, default=128, help='dimension of model') # should be half of d_ff
-parser.add_argument('--d_ff', type=int, default=256, help='dimension of fcn') # FC network, 
+parser.add_argument('--d_model', type=int, default=64, help='dimension of model') # should be half of d_ff
+parser.add_argument('--d_ff', type=int, default=128, help='dimension of fcn') # FC network, 
 parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock') # 5
 parser.add_argument('--num_kernels', type=int, default=6, help='for Inception') # 6
 parser.add_argument('--embed', type=str, default='timeF',
@@ -85,6 +86,9 @@ parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
 parser.add_argument('--gpu', type=int, default=0, help='gpu')
 parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
 parser.add_argument('--devices', type=str, default='0,1,2,3', help='device ids of multi gpus')
+
+# visual
+parser.add_argument('--epoch_to_vis', type=int, default=5)
 
 args = parser.parse_args()
 args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False

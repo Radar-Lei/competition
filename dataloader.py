@@ -240,10 +240,7 @@ class Dataset_Custom(Dataset):
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
         elif (self.set_type == 1) or (self.set_type == 2):
-            if self.missing_pattern == 'sm':
-                s_begin = index * (self.seq_len + self.pred_len)
-            else:
-                s_begin = self.valid_indices[index]
+            s_begin = index * (self.seq_len + self.pred_len)
             s_end = s_begin + self.seq_len
             r_begin = s_end - self.label_len
             r_end = r_begin + self.label_len + self.pred_len
