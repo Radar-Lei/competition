@@ -217,7 +217,7 @@ class Inception_Block_V1(nn.Module):
         self.num_kernels = num_kernels
         kernels = []
         for i in range(self.num_kernels):
-            kernels.append(nn.Conv2d(in_channels, out_channels, kernel_size=4 * i + 1, padding=2*i))
+            kernels.append(nn.Conv2d(in_channels, out_channels, kernel_size=2 * i + 1, padding=1*i))
         self.kernels = nn.ModuleList(kernels)
         if init_weight:
             self._initialize_weights()

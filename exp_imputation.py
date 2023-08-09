@@ -28,7 +28,8 @@ class Exp_Imputation(Exp_Basic):
         return data_set, data_loader
 
     def _select_optimizer(self):
-        model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5)
+        # Adadelta, Adagrad, RMSprop
+        model_optim = optim.Adadelta(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5)
         return model_optim
 
     def _select_criterion(self):
@@ -108,6 +109,7 @@ class Exp_Imputation(Exp_Basic):
 
                 if self.args.missing_pattern == 'rm':
                     # random mask
+                    np.random.seed(self.args.fixed_seed)
                     mask = torch.rand((B, L, K))
                     mask[mask <= self.args.missing_rate] = 0  # masked
                     mask[mask > self.args.missing_rate] = 1  # remained
@@ -119,10 +121,8 @@ class Exp_Imputation(Exp_Basic):
                 mask = mask.to(self.device)
                 # mask for the NaN values in the original data
                 actual_mask = actual_mask.to(self.device)
-                # target mask should be compute before actula_mask * mask
+                mask = actual_mask * mask 
                 target_mask = actual_mask - mask
-                target_mask[target_mask <0] = 0
-                mask = actual_mask * mask # here is actully the obs_mask
 
                 # outputs is of shape (B, n_samples, L_hist, K)
                 outputs = self.model.evaluate(batch_x, batch_x_mark, None, None, mask, target_mask)
@@ -281,6 +281,7 @@ class Exp_Imputation(Exp_Basic):
                     mask = torch.rand((B, L, K))
                     mask[mask <= self.args.missing_rate] = 0  # masked
                     mask[mask > self.args.missing_rate] = 1  # remained
+                    reserve_indices = None
                 elif self.args.missing_pattern == 'sm':
                     # randomly structurally missing
                     actual_mask[:,:,reserve_indices] = 0
@@ -288,9 +289,8 @@ class Exp_Imputation(Exp_Basic):
 
                 mask = mask.to(self.device)
                 actual_mask = actual_mask.to(self.device)
-                target_mask = actual_mask - mask # before actual_mask * mask
-                target_mask[target_mask <0] = 0
                 mask = actual_mask * mask
+                target_mask = actual_mask - mask
                 
                 # remember that in the forward process, we compute the loss between the predicted noise nad the actual noise
                 outputs, curr_noise = self.model(batch_x, batch_x_mark, None, None, mask, target_mask)
