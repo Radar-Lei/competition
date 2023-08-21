@@ -134,7 +134,7 @@ class Exp_Imputation(Exp_Basic):
                 target_mask = actual_mask - mask
 
                 # outputs is of shape (B, n_samples, L_hist, K)
-                outputs = self.model.evaluate(batch_x, batch_x_mark, None, None, mask, target_mask)
+                outputs = self.model.evaluate_acc(batch_x, batch_x_mark, None, None, mask, target_mask)
 
                 # eval
                 B, n_samples, L, K = outputs.shape
@@ -293,6 +293,8 @@ class Exp_Imputation(Exp_Basic):
                 elif self.args.missing_pattern == 'bm':
                     # block mask
                     B, L, K = batch_x.shape
+                    # when training, also need to be fixed
+                    np.random.seed(self.args.fixed_seed)
                     mask = np.random.rand(int(B*L*K / self.args.window_size))
                     temp = np.array([mask] * self.args.window_size)
                     mask = temp.reshape([L,B,K], order='F').transpose([1,0,2])

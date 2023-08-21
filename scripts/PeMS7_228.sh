@@ -20,11 +20,11 @@ python -u main.py \
     --missing_rate 0.3 \
     \
     --diff_schedule quad \
-    --diff_steps 100 \
+    --diff_steps 800 \
     --diff_samples 32 \
     --beta_start 0.0001 \
     --beta_end 0.01 \
-    --sampling_shrink_interval 4 \
+    --sampling_shrink_interval 8 \
     \
     --e_layers 2\
     --enc_in 228\
