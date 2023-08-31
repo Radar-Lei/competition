@@ -281,7 +281,7 @@ def plot_subplots(
             plt.setp(axes[-1, col], xlabel='Time')
 
     plt.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95, hspace=0.3, wspace=0.2)
-    plt.savefig(f"{path}epoch({epoch}).png",dpi=200)
+    plt.savefig(f"{path}epoch({epoch}).svg")
     plt.close()
 
 
@@ -340,5 +340,5 @@ def daily_plot_subplots(
             plt.setp(axes[-1, col], xlabel='Time')
 
     plt.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95, hspace=0.3, wspace=0.2)
-    plt.savefig(f"{path}epoch({epoch}).png",dpi=200)
+    plt.savefig(f"{path}epoch({epoch}).svg")
     plt.close()
