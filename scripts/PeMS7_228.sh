@@ -20,7 +20,7 @@ python -u main.py \
     --missing_rate 0.3 \
     \
     --diff_schedule quad \
-    --diff_steps 800 \
+    --diff_steps 300 \
     --diff_samples 32 \
     --beta_start 0.0001 \
     --beta_end 0.01 \
@@ -30,8 +30,8 @@ python -u main.py \
     --enc_in 228\
     --dec_in 228\
     --c_out 228\
-    --d_model 256 \
-    --d_ff 512 \
+    --d_model 128 \
+    --d_ff 256 \
     --top_k 5 \
     --num_kernels 6 \
     --embed timeF \
